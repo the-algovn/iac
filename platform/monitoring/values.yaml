@@ -1,0 +1,46 @@
+fullnameOverride: vm
+vmsingle:
+  spec:
+    retentionPeriod: 15d
+    storage:
+      accessModes: [ReadWriteOnce]
+      resources: { requests: { storage: 20Gi } }
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 512Mi }
+vmagent:
+  spec:
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 256Mi }
+vmalert:
+  spec:
+    resources:
+      requests: { cpu: 25m, memory: 64Mi }
+      limits: { memory: 128Mi }
+alertmanager:
+  enabled: true
+  spec:
+    configSecret: alertmanager-config
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 64Mi }
+grafana:
+  enabled: true
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  grafana.ini:
+    server:
+      root_url: https://grafana.algovn.com
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+  persistence: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }
+kubeEtcd: { enabled: false }
+defaultDashboards:
+  enabled: true

@@ -1,0 +1,24 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: argocd-metrics
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [argocd] }
+  selector:
+    matchExpressions:
+      - { key: app.kubernetes.io/name, operator: In, values: [argocd-metrics, argocd-server-metrics, argocd-repo-server] }
+  endpoints:
+    - port: metrics
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: cert-manager
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [cert-manager] }
+  selector:
+    matchLabels: { app.kubernetes.io/name: cert-manager }
+  endpoints:
+    - port: tcp-prometheus-servicemonitor
