@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/external-dns/
+      chart: external-dns
+      targetRevision: 1.21.1
+      helm:
+        releaseName: external-dns
+        valueFiles:
+          - $values/platform/external-dns/values.yaml
+    - repoURL: https://github.com/the-algovn/iac.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/the-algovn/iac.git
+      targetRevision: main
+      path: platform/external-dns/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]

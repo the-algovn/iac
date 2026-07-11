@@ -1,0 +1,16 @@
+provider:
+  name: cloudflare
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef: { name: cloudflare-api-token, key: token }
+sources: [ingress]
+domainFilters: [algovn.com]
+policy: sync
+txtOwnerId: algovn
+extraArgs:
+  - --cloudflare-proxied
+  - --default-targets=cb033e8e-8bae-42b0-b0f7-858d35daec9c.cfargotunnel.com
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+  limits: { memory: 96Mi }
