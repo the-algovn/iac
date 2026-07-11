@@ -23,8 +23,10 @@ for dir in clusters; do
 done
 
 echo "==> actionlint"
-[ -d .github/workflows ] && actionlint || true
-[ -d templates ] && find templates -name '*.yaml' -exec actionlint {} + 2>/dev/null || true
+if [ -d .github/workflows ]; then actionlint; fi
+if [ -d templates ]; then
+  find templates -name '*.yaml' -print0 | xargs -0 -r actionlint
+fi
 
 echo "==> gitleaks"
 gitleaks detect --no-banner --redact
