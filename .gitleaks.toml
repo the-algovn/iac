@@ -1,0 +1,8 @@
+# SealedSecret CRs (*-sealed.yaml) hold asymmetrically encrypted blobs — safe to
+# commit by design; only the in-cluster controller key can decrypt them.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "SealedSecret manifests"
+paths = ['''.*-sealed\.yaml$''']
