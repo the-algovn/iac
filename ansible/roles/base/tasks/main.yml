@@ -1,0 +1,24 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name: [curl, unattended-upgrades, nfs-common, open-iscsi, jq]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+
+- name: Kernel params for k8s
+  ansible.builtin.copy:
+    src: 99-k8s.conf
+    dest: /etc/sysctl.d/99-k8s.conf
+    mode: "0644"
+  notify: reload sysctl
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

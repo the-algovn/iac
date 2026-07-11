@@ -1,0 +1,17 @@
+- name: Install systemd zram generator
+  ansible.builtin.apt:
+    name: systemd-zram-generator
+    state: present
+
+- name: Configure zram0
+  ansible.builtin.copy:
+    src: zram-generator.conf
+    dest: /etc/systemd/zram-generator.conf
+    mode: "0644"
+  register: zram_conf
+
+- name: Activate zram0
+  ansible.builtin.systemd:
+    name: systemd-zram-setup@zram0.service
+    state: "{{ 'restarted' if zram_conf.changed else 'started' }}"
+    daemon_reload: true
