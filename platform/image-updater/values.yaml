@@ -1,0 +1,10 @@
+fullnameOverride: argocd-image-updater
+config:
+  registries:
+    - name: GitHub Container Registry
+      prefix: ghcr.io
+      api_url: https://ghcr.io
+      default: true
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+  limits: { memory: 96Mi }
