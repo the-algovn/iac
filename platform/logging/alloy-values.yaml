@@ -1,0 +1,41 @@
+alloy:
+  configMap:
+    content: |
+      discovery.kubernetes "pods" { role = "pod" }
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+      }
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.write.default.receiver]
+      }
+      loki.source.journal "journal" {
+        max_age    = "12h"
+        labels     = { job = "systemd-journal" }
+        forward_to = [loki.write.default.receiver]
+      }
+      loki.write "default" {
+        endpoint { url = "http://loki.logging.svc.cluster.local:3100/loki/api/v1/push" }
+      }
+  mounts: { extra: [{ name: journal, mountPath: /var/log/journal, readOnly: true }] }
+  resources:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { memory: 192Mi }
+controller:
+  type: daemonset
+  volumes:
+    extra:
+      - name: journal
+        hostPath: { path: /var/log/journal }

@@ -38,6 +38,11 @@ grafana:
     requests: { cpu: 50m, memory: 128Mi }
     limits: { memory: 256Mi }
   persistence: { enabled: false }
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.logging.svc.cluster.local:3100
+      access: proxy
 kubeControllerManager: { enabled: false }
 kubeScheduler: { enabled: false }
 kubeProxy: { enabled: false }
