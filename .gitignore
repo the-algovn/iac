@@ -1,0 +1,5 @@
+*.plaintext.yaml
+*.key
+kubeconfig*
+.secrets/
+__pycache__/
