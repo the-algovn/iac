@@ -9,4 +9,4 @@ all:
       hosts: {}   # future nodes: name + ansible_host (ssh)
   vars:
     ansible_user: ducle
-    k3s_version: ""   # set in Task 4 step 1
+    k3s_version: "v1.36.2+k3s1"

@@ -1,0 +1,34 @@
+- name: Read join token from server
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  delegate_to: "{{ groups['server'][0] }}"
+  register: node_token
+  run_once: true
+
+- name: k3s config dir
+  ansible.builtin.file: { path: /etc/rancher/k3s, state: directory, mode: "0755" }
+
+- name: k3s agent config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    mode: "0600"
+  vars:
+    k3s_node_token: "{{ node_token.content | b64decode | trim }}"
+
+- name: Download k3s installer
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/share/k3s-install.sh
+    mode: "0755"
+
+- name: Install k3s agent (pinned)
+  ansible.builtin.command: /usr/local/share/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: agent
+  args:
+    creates: /usr/local/bin/k3s
+
+- name: Ensure agent running
+  ansible.builtin.systemd: { name: k3s-agent, state: started, enabled: true }

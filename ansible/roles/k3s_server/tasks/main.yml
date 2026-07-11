@@ -1,0 +1,33 @@
+- name: k3s config dir
+  ansible.builtin.file: { path: /etc/rancher/k3s, state: directory, mode: "0755" }
+
+- name: k3s server config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    mode: "0600"
+  register: k3s_cfg
+
+- name: Download k3s installer
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/share/k3s-install.sh
+    mode: "0755"
+
+- name: Install/upgrade k3s server (pinned)
+  ansible.builtin.command: /usr/local/share/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+  args:
+    creates: /usr/local/bin/k3s
+  register: k3s_install
+
+- name: Restart k3s on config change
+  ansible.builtin.systemd:
+    name: k3s
+    state: "{{ 'restarted' if (k3s_cfg.changed and not k3s_install.changed) else 'started' }}"
+    enabled: true
+
+- name: Wait for node Ready
+  ansible.builtin.command: k3s kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=180s
+  changed_when: false

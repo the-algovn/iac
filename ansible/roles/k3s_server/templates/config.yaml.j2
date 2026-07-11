@@ -1,0 +1,6 @@
+node-name: {{ inventory_hostname }}
+tls-san:
+  - {{ ansible_host }}
+  - {{ inventory_hostname }}
+write-kubeconfig-mode: "0600"
+secrets-encryption: true
