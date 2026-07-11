@@ -11,6 +11,9 @@ txtOwnerId: algovn
 extraArgs:
   - --cloudflare-proxied
   - --default-targets=cb033e8e-8bae-42b0-b0f7-858d35daec9c.cfargotunnel.com
+  # v0.21+: ingress status IPs (k3s svclb LAN IP) would otherwise override
+  # default targets; everything public must route via the tunnel CNAME.
+  - --force-default-targets
 resources:
   requests: { cpu: 10m, memory: 48Mi }
   limits: { memory: 96Mi }
