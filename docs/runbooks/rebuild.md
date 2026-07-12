@@ -11,5 +11,7 @@ Needs from password manager: sealed-secrets key, Argo admin pw, Grafana admin pw
    `algovn` is a SEPARATE pre-existing production tunnel (host systemd cloudflared.service, serves
    apex/portainer/ssh/the-button-api/the-song-api) — never delete or reuse it for the cluster.
 7. Re-check Cloudflare Access apps (docs/runbooks/cloudflare-access.md).
-8. Accepted losses: metrics history, Loki logs, uptime-kuma history (recreate admin+monitors, Task 16 §3).
+8. Since 2026-07-12 the stateful volumes (vmsingle, loki, uptime-kuma) live on algovn-w1,
+   not the Pi — a Pi rebuild no longer loses them. The Pi re-taints itself at registration
+   (`node-taint` in the k3s config), so workloads return to workers automatically.
 Firewall: the Pi's ufw is hand-managed (not ansible) — a re-flash loses it. Re-enable: 22/tcp limit, 80,443/tcp allow, plus k3s inter-node 6443/tcp, 8472/udp, 10250/tcp from 192.168.102.0/24 (agents silently fail to join without these; see add-node.md).
