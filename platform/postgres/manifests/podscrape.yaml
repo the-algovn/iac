@@ -1,0 +1,12 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: postgres
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [postgres] }
+  selector:
+    matchLabels: { cnpg.io/cluster: pg }
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics

@@ -1,0 +1,29 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg
+  namespace: postgres
+  annotations:
+    # A git hiccup must not cascade-delete the database (PV reclaim is Delete)
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
+  # Deliberate: LAN admin via psql/DBeaver (homelab threat model) — see runbook
+  enableSuperuserAccess: true
+  storage:
+    storageClass: local-path
+    size: 10Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+  managed:
+    roles: []
+    services:
+      additional:
+        - selectorType: rw
+          serviceTemplate:
+            metadata:
+              name: pg-lb
+            spec:
+              type: LoadBalancer
