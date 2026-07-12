@@ -9,6 +9,7 @@ w1's ufw is currently INACTIVE (verified 2026-07-12) — no firewall rule needed
 enabled on w1, allow 5432/tcp from 192.168.102.0/24.
 Admin password: `kubectl get secret -n postgres pg-superuser -o jsonpath='{.data.password}' | base64 -d`
 In-pod psql (no password): `kubectl exec -it -n postgres pg-1 -c postgres -- psql -U postgres`
+Default bootstrap created DB `app`/role `app` (secret `pg-app`); it's unmanaged and shows as `"not-managed": ["app"]` in managedRolesStatus. Don't name a future app "app"; drop via in-pod psql if unwanted.
 
 ## Add an app database (all declarative, no manual psql)
 Sealing needs `kubectl` + `kubeseal` — the Mac has neither; run the seal pipeline over ssh on the Pi
