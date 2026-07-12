@@ -47,5 +47,11 @@ kubeControllerManager: { enabled: false }
 kubeScheduler: { enabled: false }
 kubeProxy: { enabled: false }
 kubeEtcd: { enabled: false }
+# k3s runs a single binary — the sync job still creates scheduler/controller-manager
+# alert groups unless disabled explicitly (kube*.enabled only gates scrapes/dashboards).
+defaultRules:
+  groups:
+    kubernetes-system-scheduler: { create: false }
+    kubernetes-system-controller-manager: { create: false }
 defaultDashboards:
   enabled: true
