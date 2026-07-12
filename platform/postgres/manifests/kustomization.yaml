@@ -4,4 +4,3 @@ resources:
   - cluster.yaml
   - podscrape.yaml
   - pg-role-testapp-sealed.yaml
-  - db-testapp.yaml
