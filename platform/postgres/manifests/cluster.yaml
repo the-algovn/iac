@@ -18,7 +18,12 @@ spec:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { memory: 1Gi }
   managed:
-    roles: []
+    roles:
+      - name: testapp
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pg-role-testapp
     services:
       additional:
         - selectorType: rw
