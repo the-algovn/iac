@@ -1,0 +1,26 @@
+controller:
+  ingressController:
+    ingressClass: kong
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 256Mi }
+gateway:
+  image:
+    repository: kong
+  replicaCount: 1
+  proxy:
+    type: ClusterIP        # flipped to LoadBalancer in Task 6 after Traefik is gone
+  admin:
+    enabled: true           # required for KIC gatewayDiscovery (CONTROLLER_KONG_ADMIN_SVC); headless, not externally reachable
+    type: ClusterIP
+  manager:
+    enabled: false
+  secretVolumes:
+    - wildcard-algovn-tls
+  env:
+    database: "off"
+    ssl_cert: /etc/secrets/wildcard-algovn-tls/tls.crt
+    ssl_cert_key: /etc/secrets/wildcard-algovn-tls/tls.key
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
