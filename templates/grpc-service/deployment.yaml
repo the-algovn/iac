@@ -1,0 +1,29 @@
+# Copy-me template: internal gRPC service. Replace NAME/NAMESPACE/IMAGE.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: NAME
+  namespace: NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: NAME }
+  template:
+    metadata:
+      labels: { app: NAME }
+    spec:
+      containers:
+        - name: NAME
+          image: ghcr.io/the-algovn/IMAGE:vX.Y.Z
+          ports:
+            - { containerPort: 9090, name: grpc }
+            - { containerPort: 9091, name: metrics }
+          readinessProbe:
+            grpc: { port: 9090 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            grpc: { port: 9090 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 128Mi }

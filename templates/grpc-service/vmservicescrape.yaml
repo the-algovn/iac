@@ -1,0 +1,11 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: NAME
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [NAMESPACE] }
+  selector:
+    matchLabels: { app: NAME }
+  endpoints:
+    - port: metrics

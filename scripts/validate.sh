@@ -25,7 +25,7 @@ done
 echo "==> actionlint"
 if [ -d .github/workflows ]; then actionlint; fi
 if [ -d templates ]; then
-  find templates -name '*.yaml' -print0 | xargs -0 -r actionlint
+  find templates -maxdepth 1 -name 'github-actions-*.yaml' -print0 | xargs -0 -r actionlint
 fi
 
 echo "==> gitleaks"

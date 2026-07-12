@@ -18,3 +18,12 @@
    Add it to a kustomization synced by the image-updater Application, and set
    `config.gitCredentials` in `platform/image-updater/values.yaml` per chart docs.
 5. Merge. `argocd app wait <name> --core` → live at `https://<name>.algovn.com`.
+
+# Onboarding an internal gRPC service
+
+1. Contracts first: add `algovn.<name>.v1` protos to `the-algovn/protos`, PR through its
+   buf lint/breaking CI, tag; `go get github.com/the-algovn/protos/gen/go@<tag>`.
+2. Copy `templates/grpc-service/` → `apps/<name>/`, replace NAME/NAMESPACE/IMAGE,
+   add `clusters/algovn/apps/<name>.yaml` Application (same as any app).
+3. Conventions (ports, health, deadlines, metrics): docs/grpc-conventions.md.
+4. No Ingress, no DNS, no Kong — internal callers dial the headless service directly.
