@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - grafana-admin-sealed.yaml
   - grafana-ingress.yaml
-  - grafana-ingress-kong.yaml
   - scrapes.yaml
   - vmrules.yaml
   - kong-dashboard-cm.yaml

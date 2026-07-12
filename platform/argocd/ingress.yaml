@@ -4,7 +4,7 @@ metadata:
   name: argocd
   namespace: argocd
 spec:
-  ingressClassName: traefik
+  ingressClassName: kong
   rules:
     - host: argocd.algovn.com
       http:

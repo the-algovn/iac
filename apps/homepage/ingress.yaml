@@ -4,7 +4,7 @@ metadata:
   name: homepage
   namespace: homepage
 spec:
-  ingressClassName: traefik
+  ingressClassName: kong
   rules:
     - host: homepage.algovn.com
       http:
