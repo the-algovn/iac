@@ -1,4 +1,6 @@
-# Copy to <app-repo>/.github/workflows/build.yaml — builds linux/arm64 image to GHCR.
+# Copy to <app-repo>/.github/workflows/build.yaml — builds linux/amd64 image to GHCR.
+# amd64-only: the image runs on algovn-w1 but CANNOT fall back to the arm64 Pi during a
+# worker outage. Make it multi-arch if that ever matters.
 # Tags: vX.Y.Z git tags -> semver image tags; every push to main -> sha-<short> tag.
 name: build
 on:
@@ -10,7 +12,7 @@ permissions:
   packages: write
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -29,7 +31,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
