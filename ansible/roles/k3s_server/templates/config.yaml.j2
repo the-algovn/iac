@@ -6,3 +6,5 @@ write-kubeconfig-mode: "0600"
 secrets-encryption: true
 disable:
   - traefik
+node-taint:
+  - "workload=pi:PreferNoSchedule"
