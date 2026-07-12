@@ -5,3 +5,4 @@ resources:
   - grafana-ingress.yaml
   - scrapes.yaml
   - vmrules.yaml
+  - kong-dashboard-cm.yaml

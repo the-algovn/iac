@@ -1,0 +1,12 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: kong
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [kong] }
+  selector:
+    matchLabels: { app.kubernetes.io/component: app }
+  podMetricsEndpoints:
+    - port: status
+      path: /metrics
