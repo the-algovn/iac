@@ -15,3 +15,4 @@ Run on the Pi with `export KUBECONFIG=$HOME/.kube/config`.
 11. Existing production tunnel untouched: `portainer.algovn.com`, `ssh.algovn.com`,
     `the-button-api.algovn.com`, `the-song-api.algovn.com` still CNAME to tunnel
     15675449-… (NOT the cluster tunnel cb033e8e-…).
+Note: the Pi kubeconfig's default namespace is `argocd` — ad-hoc `kubectl run` pods land there unless you pass `-n`.
