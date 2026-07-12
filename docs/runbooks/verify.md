@@ -6,7 +6,8 @@ Run on the Pi with `export KUBECONFIG=$HOME/.kube/config`.
 4. Access: `curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → 302 (challenge).
 5. LAN TLS: `curl -s --resolve x.algovn.com:443:192.168.102.200 https://x.algovn.com -o /dev/null -w '%{http_code}'` → 404, no cert error.
 6. Grafana: dashboards show live node metrics; Explore→Loki `{namespace="argocd"}` returns lines.
-7. Alert path: port-forward alertmanager :9093, POST test alert (Task 12 §4 command) → Telegram message.
+7. Alert rules: vmalert evaluates platform-custom rules (Telegram delivery skipped by decision
+   2026-07-12 — alerts visible in Grafana/vmalert only). Check: no ArgoAppNotSynced/Unhealthy firing.
 8. Drift test: `kubectl -n homepage scale deploy homepage --replicas=3`; within ~5 min replicas back to 1.
 9. `free -h` → available ≥ 1GB with no user workloads under load.
 10. uptime-kuma monitors all green.

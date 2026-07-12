@@ -22,4 +22,4 @@ Argo CD admin pw, Grafana admin pw (sealed grafana-admin secret holds it, but ke
 uptime-kuma admin, Cloudflare account creds.
 ## Inventory of sealed secrets
 cert-manager/cloudflare-api-token · external-dns/cloudflare-api-token · cloudflared/tunnel-credentials ·
-monitoring/grafana-admin · monitoring/alertmanager-config (pending Task 12)
+monitoring/grafana-admin (alertmanager-config not sealed — Telegram alerting skipped 2026-07-12)

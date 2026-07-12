@@ -4,3 +4,4 @@ resources:
   - grafana-admin-sealed.yaml
   - grafana-ingress.yaml
   - scrapes.yaml
+  - vmrules.yaml

@@ -1,0 +1,29 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: platform-custom
+  namespace: monitoring
+spec:
+  groups:
+    - name: gitops
+      rules:
+        - alert: ArgoAppNotSynced
+          expr: argocd_app_info{sync_status!="Synced"} == 1
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: 'Argo app {{ $labels.name }} not synced for 15m'
+        - alert: ArgoAppUnhealthy
+          expr: argocd_app_info{health_status!~"Healthy|Progressing"} == 1
+          for: 15m
+          labels: { severity: critical }
+          annotations:
+            summary: 'Argo app {{ $labels.name }} unhealthy: {{ $labels.health_status }}'
+    - name: certificates
+      rules:
+        - alert: CertExpiringSoon
+          expr: certmanager_certificate_expiration_timestamp_seconds - time() < 14 * 24 * 3600
+          for: 1h
+          labels: { severity: warning }
+          annotations:
+            summary: 'Certificate {{ $labels.name }} expires in under 14 days'
