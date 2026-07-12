@@ -9,7 +9,7 @@ gateway:
     repository: kong
   replicaCount: 1
   proxy:
-    type: ClusterIP        # flipped to LoadBalancer in Task 6 after Traefik is gone
+    type: LoadBalancer
   admin:
     enabled: true           # required for KIC gatewayDiscovery (CONTROLLER_KONG_ADMIN_SVC); headless, not externally reachable
     type: ClusterIP
