@@ -4,7 +4,7 @@ Shared single-instance PostgreSQL 18 cluster `pg`, ns `postgres` (operator `cnpg
 irreplaceable lands here: WAL archiving + base backups to Cloudflare R2 (CNPG Barman Cloud plugin).
 
 ## Connect
-In-cluster: `pg-rw.postgres.svc:5432`. LAN: `192.168.102.201:5432` (svclb `pg-lb`).
+In-cluster: `pg-rw.postgres.svc:5432`. LAN: `192.168.102.201:5432` (svclb `pg-lb`). Never `.200` — the Pi's hand-managed ufw blocks 5432 even though svclb advertises both node IPs.
 w1's ufw is currently INACTIVE (verified 2026-07-12) — no firewall rule needed today; if ufw is ever
 enabled on w1, allow 5432/tcp from 192.168.102.0/24.
 Admin password: `kubectl get secret -n postgres pg-superuser -o jsonpath='{.data.password}' | base64 -d`
