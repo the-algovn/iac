@@ -10,15 +10,20 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - name: Install tools
+        env:
+          # anonymous api.github.com calls share the runner IP's 60 req/h quota
+          # and rate-limit constantly; the built-in token gets 1000+ req/h
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           curl -sL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
           mv kustomize /usr/local/bin/
-          KC_VER=$(curl -s https://api.github.com/repos/yannh/kubeconform/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+          api() { curl -s --retry 3 -H "Authorization: Bearer ${GH_TOKEN}" "$1"; }
+          KC_VER=$(api https://api.github.com/repos/yannh/kubeconform/releases/latest | grep -oP '"tag_name": "\K[^"]+')
           curl -sL "https://github.com/yannh/kubeconform/releases/download/${KC_VER}/kubeconform-linux-arm64.tar.gz" | tar xz -C /usr/local/bin kubeconform
-          GL_VER=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
+          GL_VER=$(api https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
           curl -sL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VER}/gitleaks_${GL_VER}_linux_arm64.tar.gz" | tar xz -C /usr/local/bin gitleaks
-          AL_VER=$(curl -s https://api.github.com/repos/rhysd/actionlint/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
+          AL_VER=$(api https://api.github.com/repos/rhysd/actionlint/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
           curl -sL "https://github.com/rhysd/actionlint/releases/download/v${AL_VER}/actionlint_${AL_VER}_linux_arm64.tar.gz" | tar xz -C /usr/local/bin actionlint
       - name: Validate
         run: scripts/validate.sh
