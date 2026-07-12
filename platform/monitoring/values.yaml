@@ -7,7 +7,8 @@ vmsingle:
       resources: { requests: { storage: 20Gi } }
     resources:
       requests: { cpu: 100m, memory: 256Mi }
-      limits: { memory: 512Mi }
+      # 512Mi OOMKilled repeatedly under the full k8s scrape set (32 restarts on 2026-07-12)
+      limits: { memory: 768Mi }
 vmagent:
   spec:
     resources:
