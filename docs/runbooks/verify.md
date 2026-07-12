@@ -10,7 +10,7 @@ Run on the Pi with `export KUBECONFIG=$HOME/.kube/config`.
 7. Alert rules: vmalert evaluates platform-custom rules (Telegram delivery skipped by decision
    2026-07-12 — alerts visible in Grafana/vmalert only). Check: no ArgoAppNotSynced/Unhealthy firing.
 8. Drift test: `kubectl -n homepage scale deploy homepage --replicas=3`; within ~5 min replicas back to 1.
-9. `free -h` → available ≥ 1GB with no user workloads under load.
+9. `free -h` → available ≥ 400Mi (Kong-era budget, spec §7.6 of the kong design).
 10. uptime-kuma monitors all green.
 11. Existing production tunnel untouched: `portainer.algovn.com`, `ssh.algovn.com`,
     `the-button-api.algovn.com`, `the-song-api.algovn.com` still CNAME to tunnel

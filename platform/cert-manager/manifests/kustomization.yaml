@@ -3,4 +3,3 @@ kind: Kustomization
 resources:
   - cloudflare-token-sealed.yaml
   - clusterissuer.yaml
-  - wildcard-cert.yaml
