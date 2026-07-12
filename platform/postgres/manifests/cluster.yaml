@@ -20,7 +20,7 @@ spec:
   managed:
     roles:
       - name: testapp
-        ensure: present
+        ensure: absent
         login: true
         passwordSecret:
           name: pg-role-testapp
