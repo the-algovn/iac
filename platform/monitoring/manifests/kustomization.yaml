@@ -6,3 +6,4 @@ resources:
   - scrapes.yaml
   - vmrules.yaml
   - kong-dashboard-cm.yaml
+  - postgres-dashboard-cm.yaml
