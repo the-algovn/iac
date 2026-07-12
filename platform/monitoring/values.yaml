@@ -13,7 +13,8 @@ vmagent:
   spec:
     resources:
       requests: { cpu: 50m, memory: 128Mi }
-      limits: { memory: 256Mi }
+      # 256Mi OOMKilled repeatedly after move to algovn-w1 (exit 137, 31 restarts on 2026-07-12)
+      limits: { memory: 512Mi }
 vmalert:
   spec:
     resources:
