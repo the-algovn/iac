@@ -7,8 +7,10 @@ vmsingle:
       resources: { requests: { storage: 20Gi } }
     resources:
       requests: { cpu: 100m, memory: 256Mi }
-      # 512Mi OOMKilled repeatedly under the full k8s scrape set (32 restarts on 2026-07-12)
-      limits: { memory: 768Mi }
+      # 768Mi OOMKilled repeatedly on algovn-w1 (16 cores vs Pi's 4 — VM sizes internal
+      # concurrency buffers per visible CPU, e.g. search.maxConcurrentRequests=16 default;
+      # exit 137, 9 restarts on 2026-07-12)
+      limits: { memory: 2Gi }
 vmagent:
   spec:
     resources:
