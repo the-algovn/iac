@@ -24,5 +24,6 @@ zitadel-iam-admin-sa-pat, openfga-api-key.
 ## Inventory of sealed secrets
 cert-manager/cloudflare-api-token · external-dns/cloudflare-api-token · cloudflared/tunnel-credentials ·
 monitoring/grafana-admin (alertmanager-config not sealed — Telegram alerting skipped 2026-07-12) ·
+monitoring/grafana-oauth (Zitadel client secret for Grafana SSO) ·
 postgres/pg-role-zitadel · postgres/pg-role-openfga · zitadel/zitadel-masterkey ·
 zitadel/zitadel-config · openfga/openfga-datastore · openfga/openfga-preshared

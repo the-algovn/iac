@@ -41,10 +41,14 @@ runbook is the only reproduction path.
     (check: GET /v2/features/instance shows loginV2.required=true). Without it, standard
     flows may use the legacy v1 login. See "Login versions & device flows" below.
 11. Admin-tool SSO project: Projects → `platform-admin` (Assert Roles ON; roles
-    admin/editor/viewer). Apps: `grafana` — Web, auth method Basic, redirect
+    admin/editor/viewer). Apps: `grafana` — Web, auth method CODE (client-secret basic), redirect
     https://grafana.algovn.com/login/generic_oauth; client secret sealed as
     monitoring/grafana-oauth (see grafana-sso spec). Grant admins the `admin` role.
-    Future admin tools (Argo CD) join this project.
+    Future admin tools (Argo CD) join this project. Two execution gotchas: quote OIDC client
+    IDs as strings in Helm values (unquoted 18-digit ints get float64-mangled to 3.8e+17 →
+    Errors.App.NotFound); the redirect URI and the role AUTHORIZATION grant must both exist
+    before login works (missing grant ⇒ Grafana "IdP did not return a role attribute" with
+    strict mapping).
 
 ## Verification (fresh private browser window each)
 - Google signup: /ui/v2/login → Google → new user lands in org `users`.

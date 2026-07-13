@@ -2,18 +2,21 @@
 
 Policies live in Cloudflare, NOT in git — re-check after any rebuild.
 Team domain: `the-thing-universe.cloudflareaccess.com`. Owner email: `minhducle.dev@gmail.com`.
-Current protected hosts: `argocd.algovn.com`, `grafana.algovn.com`.
+Current protected hosts: `argocd.algovn.com`.
 
 ## Recreate the policies
 In Cloudflare dashboard: **Zero Trust → Access → Applications → Add an application → Self-hosted**:
 1. App 1: name `argocd`, domain `argocd.algovn.com`; policy `admin-only`: Action Allow,
    Include → Emails → `minhducle.dev@gmail.com`; identity: One-time PIN (default).
    Session duration 24h. Save.
-2. App 2: name `grafana`, domain `grafana.algovn.com`, same policy. Save.
+
+`grafana.algovn.com` is NOT Access-protected — it uses Zitadel SSO (grafana-sso spec, 2026-07-13).
 
 ## Verify
 `curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → `302` (redirect to
-`<team>.cloudflareaccess.com` login), NOT `200`. Same for grafana. Browser: email OTP → UI loads.
+`<team>.cloudflareaccess.com` login), NOT `200`. Browser: email OTP → UI loads.
+grafana now expects `302` to `id.algovn.com` (not cloudflareaccess) via
+`curl -s -o /dev/null -w '%{redirect_url}' https://grafana.algovn.com/login/generic_oauth`.
 
 ## OTP email not arriving
 Access pretends to send the code even for emails no policy allows (anti-enumeration).

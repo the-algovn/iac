@@ -26,3 +26,4 @@ Note: the Pi kubeconfig's default namespace is `argocd` — ad-hoc `kubectl run`
 - Edge gate: any `konghq.com/plugins: jwt-auth` route → 401 bare / 200 with fresh JWT-type token
 - OpenFGA: in-cluster grpcurl health check == SERVING (needs bearer for reflection; see authnz-conventions.md)
 - Grafana dashboard "AuthN/Z" renders with live data; `up{namespace=~"zitadel|openfga"}` all 1
+- Grafana SSO: `curl -s -o /dev/null -w '%{redirect_url}' https://grafana.algovn.com/login/generic_oauth` starts with `https://id.algovn.com/oauth/v2/authorize`; passkey login lands as Admin; `/login?disableAutoLogin` + grafana-admin = break-glass
