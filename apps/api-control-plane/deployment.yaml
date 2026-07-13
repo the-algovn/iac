@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-control-plane
+  namespace: api-control-plane
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: api-control-plane }
+  template:
+    metadata:
+      labels: { app: api-control-plane }
+    spec:
+      containers:
+        - name: api-control-plane
+          image: ghcr.io/the-algovn/api-control-plane:main
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 9091, name: metrics }
+          env:
+            - { name: REGISTRATIONS_DIR, value: /etc/api-registrations }
+            - { name: ISSUER, value: "https://id.algovn.com" }
+            - { name: CORS_ORIGINS, value: "https://*.algovn.com" }
+            - name: AMQP_URL
+              valueFrom: { secretKeyRef: { name: amqp-creds, key: url } }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 192Mi }
+          volumeMounts:
+            - { name: registrations, mountPath: /etc/api-registrations, readOnly: true }
+      volumes:
+        - name: registrations
+          configMap: { name: api-registrations }
+      imagePullSecrets:
+        - name: registry-creds

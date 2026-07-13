@@ -1,0 +1,22 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: api-control-plane-updater
+  namespace: argocd
+spec:
+  applicationRefs:
+    - namePattern: api-control-plane
+      images:
+        - alias: api-control-plane
+          imageName: ghcr.io/the-algovn/api-control-plane:main
+          commonUpdateSettings:
+            updateStrategy: digest
+            pullSecret: pullsecret:argocd/ghcr-creds
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/the-algovn/api-control-plane
+      writeBackConfig:
+        method: git:secret:argocd/git-creds
+        gitConfig:
+          branch: main
+          writeBackTarget: kustomization:.

@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: api-control-plane
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/the-algovn/iac.git
+    targetRevision: main
+    path: apps/api-control-plane
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: api-control-plane
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }

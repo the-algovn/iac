@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - amqp-creds-sealed.yaml
+  - registry-creds-sealed.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - vmservicescrape.yaml
+configMapGenerator:
+  - name: api-registrations
+    namespace: api-control-plane
+    files:
+      - registrations/demo.yaml
+generatorOptions:
+  disableNameSuffixHash: true   # stable name => ConfigMap updates hot-reload in place, no pod restart
+images:
+  - name: ghcr.io/the-algovn/api-control-plane
+    newTag: main

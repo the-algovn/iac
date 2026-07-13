@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-service
+  namespace: demo-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: demo-service }
+  template:
+    metadata:
+      labels: { app: demo-service }
+    spec:
+      containers:
+        - name: demo-service
+          image: ghcr.io/the-algovn/api-control-plane:main
+          command: ["/demo-service"]
+          ports:
+            - { containerPort: 9090, name: grpc }
+            - { containerPort: 9091, name: metrics }
+          env:
+            - name: AMQP_URL
+              valueFrom: { secretKeyRef: { name: amqp-creds, key: url } }
+          readinessProbe:
+            grpc: { port: 9090 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            grpc: { port: 9090 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 128Mi }
+      imagePullSecrets:
+        - name: registry-creds

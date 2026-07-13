@@ -5,3 +5,5 @@ resources:
   - ghcr-creds-sealed.yaml
   - showcase-updater.yaml
   - landing-updater.yaml
+  - api-control-plane-updater.yaml
+  - demo-service-updater.yaml

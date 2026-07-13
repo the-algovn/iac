@@ -1,0 +1,13 @@
+prefix: /demo
+upstream: dns:///demo-service.demo-service.svc.cluster.local:9090
+defaultRule: authenticated
+routes:
+  - method: algovn.demo.v1.DemoService/Ping
+    rule: anonymous
+  - method: algovn.demo.v1.DemoService/WhoAmI
+    rule: authenticated
+  - method: algovn.demo.v1.DemoService/AdminPing
+    rule: role:admin
+channels:
+  - name: demo.ping
+    rule: anonymous

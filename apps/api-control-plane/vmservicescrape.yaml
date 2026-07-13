@@ -1,0 +1,11 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: api-control-plane
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [api-control-plane] }
+  selector:
+    matchLabels: { app: api-control-plane }
+  endpoints:
+    - port: metrics
