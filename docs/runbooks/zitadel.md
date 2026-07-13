@@ -48,7 +48,7 @@ runbook is the only reproduction path.
     IDs as strings in Helm values (unquoted 18-digit ints get float64-mangled to 3.8e+17 →
     Errors.App.NotFound); the redirect URI and the role AUTHORIZATION grant must both exist
     before login works (missing grant ⇒ Grafana "IdP did not return a role attribute" with
-    strict mapping).
+    strict mapping). Recreating the app issues a NEW client_id/secret — update the quoted client_id in platform/monitoring/values.yaml and reseal monitoring/grafana-oauth per secrets.md.
 
 ## Verification (fresh private browser window each)
 - Google signup: /ui/v2/login → Google → new user lands in org `users`.

@@ -15,8 +15,8 @@ In Cloudflare dashboard: **Zero Trust → Access → Applications → Add an app
 ## Verify
 `curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → `302` (redirect to
 `<team>.cloudflareaccess.com` login), NOT `200`. Browser: email OTP → UI loads.
-grafana now expects `302` to `id.algovn.com` (not cloudflareaccess) via
-`curl -s -o /dev/null -w '%{redirect_url}' https://grafana.algovn.com/login/generic_oauth`.
+grafana now expects `302` + redirect to `id.algovn.com/oauth/v2/authorize` via
+`curl -s -o /dev/null -w '%{http_code} %{redirect_url}' https://grafana.algovn.com/login/generic_oauth`.
 
 ## OTP email not arriving
 Access pretends to send the code even for emails no policy allows (anti-enumeration).
