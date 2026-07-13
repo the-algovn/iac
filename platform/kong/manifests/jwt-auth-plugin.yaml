@@ -1,0 +1,10 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongClusterPlugin
+metadata:
+  name: jwt-auth
+  annotations:
+    kubernetes.io/ingress.class: kong
+plugin: jwt
+config:
+  key_claim_name: kid          # match credentials by the token header kid → overlap rotation works
+  claims_to_verify: [exp]
