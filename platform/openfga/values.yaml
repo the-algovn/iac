@@ -11,6 +11,12 @@ datastore:
   # the migration inline in the Deployment pod spec instead — no hook, no
   # deadlock.
   migrationType: initContainer
+grpc:
+  addr: 0.0.0.0:9090   # conventions-conformant port; chart default 8081 is
+                        # unreachable through the headless Service below —
+                        # headless (clusterIP: None) Services don't proxy/
+                        # DNAT, clients dial the pod IP:port directly, so the
+                        # container must actually listen on 9090.
 authn:
   method: preshared
   preshared:
