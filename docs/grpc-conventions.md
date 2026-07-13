@@ -33,3 +33,4 @@ Scope: east-west only — gRPC never traverses Kong. Plaintext h2c inside the cl
 ## Exposure
 - A gRPC service never gets an Ingress. If one ever needs to be public: Kong proxies
   gRPC/gRPC-Web — design that when it happens (spec §8 trigger).
+- User-facing HTTP routes are protected by the Kong `jwt-auth` plugin — see `docs/authnz-conventions.md`.
