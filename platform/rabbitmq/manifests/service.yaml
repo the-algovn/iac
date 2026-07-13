@@ -3,6 +3,7 @@ kind: Service
 metadata:
   name: rabbitmq
   namespace: rabbitmq
+  labels: { app: rabbitmq }
 spec:
   selector: { app: rabbitmq }
   ports:
