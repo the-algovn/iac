@@ -3,3 +3,5 @@ kind: Kustomization
 resources:
   - cluster.yaml
   - podscrape.yaml
+  - db-zitadel.yaml
+  - pg-role-zitadel-sealed.yaml

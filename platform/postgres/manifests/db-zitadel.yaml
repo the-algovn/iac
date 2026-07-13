@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: zitadel
+  namespace: postgres
+spec:
+  name: zitadel
+  owner: zitadel
+  cluster: { name: pg }
