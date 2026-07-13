@@ -6,3 +6,8 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+images:
+  - name: ghcr.io/the-algovn/web-showcase
+    newName: ghcr.io/the-algovn/web-showcase
+    newTag: main
+    digest: sha256:4b3d96fb0fb3b407599360b7965396287e3012c1357103ea4399e4ab98b49b28
