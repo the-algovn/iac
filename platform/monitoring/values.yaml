@@ -6,7 +6,7 @@ vmsingle:
       accessModes: [ReadWriteOnce]
       resources: { requests: { storage: 20Gi } }
     resources:
-      requests: { cpu: 100m, memory: 256Mi }
+      requests: { cpu: 150m, memory: 512Mi }
       # 768Mi OOMKilled repeatedly on algovn-w1 (16 cores vs Pi's 4 — VM sizes internal
       # concurrency buffers per visible CPU, e.g. search.maxConcurrentRequests=16 default;
       # exit 137, 9 restarts on 2026-07-12)
@@ -14,21 +14,21 @@ vmsingle:
 vmagent:
   spec:
     resources:
-      requests: { cpu: 50m, memory: 128Mi }
+      requests: { cpu: 100m, memory: 256Mi }
       # 256Mi OOMKilled repeatedly after move to algovn-w1 (exit 137, 31 restarts on 2026-07-12)
       limits: { memory: 1Gi }
 vmalert:
   spec:
     resources:
-      requests: { cpu: 25m, memory: 64Mi }
-      limits: { memory: 128Mi }
+      requests: { cpu: 50m, memory: 96Mi }
+      limits: { memory: 256Mi }
 alertmanager:
   enabled: true
   spec:
     configSecret: alertmanager-config
     resources:
-      requests: { cpu: 10m, memory: 32Mi }
-      limits: { memory: 64Mi }
+      requests: { cpu: 25m, memory: 64Mi }
+      limits: { memory: 128Mi }
 grafana:
   enabled: true
   admin:
@@ -56,7 +56,7 @@ grafana:
         || contains(keys("urn:zitadel:iam:org:project:roles" || `{}`), 'editor') && 'Editor'
         || contains(keys("urn:zitadel:iam:org:project:roles" || `{}`), 'viewer') && 'Viewer'
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
+    requests: { cpu: 100m, memory: 256Mi }
     limits: { memory: 512Mi }
   persistence: { enabled: false }
   additionalDataSources:

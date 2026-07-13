@@ -19,7 +19,7 @@ singleBinary:
   replicas: 1
   persistence: { enabled: true, size: 30Gi }
   resources:
-    requests: { cpu: 100m, memory: 256Mi }
+    requests: { cpu: 150m, memory: 512Mi }
     limits: { memory: 1Gi }
 read: { replicas: 0 }
 write: { replicas: 0 }

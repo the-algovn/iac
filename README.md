@@ -1,6 +1,6 @@
 # the-algovn/iac
 
-IaC + GitOps source of truth for the `algovn` k3s cluster (Raspberry Pi 5).
+IaC + GitOps source of truth for the `algovn` k3s cluster — Raspberry Pi 5 control plane + a powerful x86 worker (i9, 32 GB RAM).
 
 - **Spec**: docs/superpowers/specs/2026-07-11-k3s-gitops-cluster-design.md
 - **Layers**: `ansible/` (node) → `bootstrap/` (one-time Argo CD) → `clusters/` + `platform/` + `apps/` (GitOps, Argo-managed)

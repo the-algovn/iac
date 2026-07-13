@@ -28,6 +28,6 @@ spec:
             periodSeconds: 20
           resources:
             requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 256Mi }
+            limits: { memory: 512Mi }
       imagePullSecrets:
         - name: registry-creds

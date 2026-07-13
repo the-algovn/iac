@@ -19,7 +19,7 @@ spec:
             httpGet: { path: /ready, port: 2000 }
             initialDelaySeconds: 10
           resources:
-            requests: { cpu: 25m, memory: 48Mi }
+            requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 128Mi }
           volumeMounts:
             - { name: config, mountPath: /etc/cloudflared/config, readOnly: true }
