@@ -22,10 +22,10 @@ zitadel:
           SSL: { Mode: disable }
 resources:
   requests: { cpu: 100m, memory: 300Mi }
-  limits: { memory: 512Mi }
+  limits: { memory: 1Gi }
 env:
   - name: GOMEMLIMIT
-    value: 450MiB
+    value: 900MiB
 ingress:
   enabled: true
   className: kong

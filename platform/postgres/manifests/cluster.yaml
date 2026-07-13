@@ -16,7 +16,7 @@ spec:
     size: 10Gi
   resources:
     requests: { cpu: 100m, memory: 256Mi }
-    limits: { memory: 1Gi }
+    limits: { memory: 2Gi }
   managed:
     roles:
       # createdb: zitadel init probes its DB via CREATE DATABASE (42501 without it; 42P04 "exists" is its success path)
