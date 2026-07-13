@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - git-creds-sealed.yaml
   - ghcr-creds-sealed.yaml
+  - showcase-updater.yaml

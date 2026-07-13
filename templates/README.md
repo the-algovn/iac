@@ -6,10 +6,10 @@
 3. **This repo**: create `apps/<name>/` (Deployment/Service/Ingress + kustomization —
    copy `apps/homepage/` as the model) and `clusters/algovn/apps/<name>.yaml`
    Application. Host `<name>.algovn.com` gets DNS + tunnel automatically.
-4. **Auto-update on new images**: add to the Application `metadata.annotations`:
-       argocd-image-updater.argoproj.io/image-list: app=ghcr.io/<org>/<repo>
-       argocd-image-updater.argoproj.io/app.update-strategy: semver
-       argocd-image-updater.argoproj.io/write-back-method: git
+4. **Auto-update on new images**: the installed updater (chart >=1.x) is CR-based —
+   the legacy `argocd-image-updater.argoproj.io/*` Application annotations are inert.
+   Add an `ImageUpdater` CR instead; model it on
+   `platform/image-updater/showcase-updater.yaml`.
    One-time (first app only): give image-updater push access — create a GitHub
    fine-grained PAT (this repo, Contents RW), then:
        kubectl create secret generic git-creds -n argocd \
