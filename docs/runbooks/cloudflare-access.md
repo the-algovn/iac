@@ -2,20 +2,20 @@
 
 Policies live in Cloudflare, NOT in git — re-check after any rebuild.
 Team domain: `the-thing-universe.cloudflareaccess.com`. Owner email: `minhducle.dev@gmail.com`.
-Current protected hosts: `argocd.algovn.com`.
+Current protected hosts: none (admin UIs use Zitadel SSO — grafana 2026-07-13, argocd 2026-07-13). Pending: the ssh/k8s host-tunnel apps below.
 
 ## Recreate the policies
 In Cloudflare dashboard: **Zero Trust → Access → Applications → Add an application → Self-hosted**:
-1. App 1: name `argocd`, domain `argocd.algovn.com`; policy `admin-only`: Action Allow,
-   Include → Emails → `minhducle.dev@gmail.com`; identity: One-time PIN (default).
-   Session duration 24h. Save.
 
 `grafana.algovn.com` is NOT Access-protected — it uses Zitadel SSO (grafana-sso spec, 2026-07-13).
+`argocd.algovn.com` is NOT Access-protected — it uses Zitadel SSO (argocd-zitadel-sso spec, 2026-07-13).
 
 ## Verify
-`curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → `302` (redirect to
-`<team>.cloudflareaccess.com` login), NOT `200`. Browser: email OTP → UI loads.
-grafana now expects `302` + redirect to `id.algovn.com/oauth/v2/authorize` via
+`curl -s -o /dev/null -w '%{http_code}' https://<host>/` → `302` (redirect to
+`<team>.cloudflareaccess.com` login), NOT `200` — applies to the pending ssh/k8s hosts once created.
+argocd and grafana are off Access now — argocd expects a plain `200`
+(`curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/`); grafana expects `302` + redirect
+to `id.algovn.com/oauth/v2/authorize` via
 `curl -s -o /dev/null -w '%{http_code} %{redirect_url}' https://grafana.algovn.com/login/generic_oauth`.
 
 ## OTP email not arriving

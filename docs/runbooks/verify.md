@@ -3,7 +3,7 @@ Run on the Pi with `export KUBECONFIG=$HOME/.kube/config`.
 1. `argocd app list --core` → every app Synced + Healthy.
 2. `kubectl get nodes` → all Ready. `kubectl get pods -A | grep -Ev 'Running|Completed'` → empty.
 3. Public path: `curl -s -o /dev/null -w '%{http_code}' https://homepage.algovn.com/` → 200.
-4. Access: `curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → 302 (challenge).
+4. Argo CD: no longer Access-gated — `curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → `200`; SSO checked in the AuthN/Z section below.
 5. LAN TLS: `curl -s --resolve x.algovn.com:443:192.168.102.200 https://x.algovn.com -o /dev/null -w '%{http_code}'` → 404 from Kong, valid cert (no cert error).
 5a. No Traefik: `kubectl get pods -A | grep -iE 'traefik'` → empty; `svclb-kong-gateway-proxy` owns node 80/443.
 6. Grafana: dashboards show live node metrics; Explore→Loki `{namespace="argocd"}` returns lines.
@@ -27,3 +27,4 @@ Note: the Pi kubeconfig's default namespace is `argocd` — ad-hoc `kubectl run`
 - OpenFGA: in-cluster grpcurl health check == SERVING (needs bearer for reflection; see authnz-conventions.md)
 - Grafana dashboard "AuthN/Z" renders with live data; `up{namespace=~"zitadel|openfga"}` all 1
 - Grafana SSO: `curl -s -o /dev/null -w '%{redirect_url}' https://grafana.algovn.com/login/generic_oauth` starts with `https://id.algovn.com/oauth/v2/authorize`; passkey login lands as Admin; `/login?disableAutoLogin` + grafana-admin = break-glass
+- Argo CD SSO: `curl -s https://argocd.algovn.com/api/v1/settings | jq -r .oidcConfig.issuer` → `https://id.algovn.com`; UI "Log in via AlgoVN ID" → passkey → admin; local admin login = break-glass; `argocd login argocd.algovn.com --sso --grpc-web` works

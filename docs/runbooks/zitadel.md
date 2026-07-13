@@ -54,7 +54,14 @@ runbook is the only reproduction path.
     https://argocd.algovn.com/auth/callback + http://localhost:8085/auth/callback.
     No role grant — Argo RBAC maps by email (platform/argocd/patches/rbac-cm.yaml).
     Recreation issues a new client_id → update the quoted clientID in
-    platform/argocd/patches/oidc-cm.yaml.
+    platform/argocd/patches/oidc-cm.yaml. The app MUST also enable "User Info inside ID Token"
+    (idTokenUserinfoAssertion) — Argo reads RBAC claims from the ID token only; without it the
+    email claim is absent, RBAC matches nothing, and Argo shows the bare sub as username with an
+    empty app list. Do NOT enable the project-level "Check authorization/project on
+    authentication" toggles on platform-admin — they make Zitadel refuse unauthorized users at
+    the IdP (untranslated Errors.User.ProjectRequired page) instead of the designed app-side deny
+    (Grafana strict mapping / Argo empty list). Only "Assert Roles on Authentication" stays
+    checked.
 
 ## Verification (fresh private browser window each)
 - Google signup: /ui/v2/login → Google → new user lands in org `users`.

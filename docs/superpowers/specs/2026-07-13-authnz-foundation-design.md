@@ -199,7 +199,7 @@ is explicit:
 | JWKS→Kong auto-sync CronJob | Rotation needed >2×/year, or a rotation incident |
 | Per-user rate limiting at edge | First abuse incident |
 | Zitadel config via Terraform provider | IdP objects grow past a handful / drift pain |
-| Migrating Argo CD off CF Access onto Zitadel SSO (Grafana done 2026-07-13 — see grafana-zitadel-sso spec) | Desire to consolidate |
+| ~~Migrating admin tools off CF Access~~ Done: Grafana + Argo CD on Zitadel SSO, 2026-07-13 (grafana-/argocd-zitadel-sso specs) | — |
 | Zitadel/OpenFGA HA replicas | Second node joins |
 | Self-service org creation, SCIM, MFA policies, audit-log shipping | First real team customer / compliance need |
 | Custom login app (fork of Zitadel's login v2, restyled) in `the-algovn/login` | First product design system exists — gets its own spec/plan |
