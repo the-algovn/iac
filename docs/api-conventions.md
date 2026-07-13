@@ -31,6 +31,11 @@ enabled (descriptors are fetched via reflection; unary only in v1). The
 verified `Authorization` header arrives as gRPC metadata — parse claims per
 authnz-conventions.md, never re-verify.
 
+Tenancy boundary: a registration may point its upstream at ANY cluster
+Service, and the gateway forwards end-user Authorization headers to it. PR
+review of registrations/*.yaml IS the boundary — there are no NetworkPolicies.
+Review upstream addresses accordingly.
+
 ## Realtime push (shared mechanic)
 Publish JSON to RabbitMQ topic exchange `events`, routing key = channel name;
 body = exactly what browsers receive. Browsers: `new EventSource
@@ -39,3 +44,7 @@ fire-and-forget only. Broker creds: seal a copy of `amqp-creds` into your
 namespace (double-seal pattern, source `rabbitmq-events` in the password
 manager). Go publish example: see `cmd/demo-service/main.go` (newPublisher)
 in the api-control-plane repo.
+
+v1 limitation: native EventSource cannot send an Authorization header, so
+browser-consumed channels must be `anonymous`. Token-gated channels need a
+fetch-based SSE client (or a v2 token transport such as a query-param ticket).

@@ -8,6 +8,7 @@ resources:
   - service.yaml
   - ingress.yaml
   - vmservicescrape.yaml
+  - rate-limit-plugin.yaml
 configMapGenerator:
   - name: api-registrations
     namespace: api-control-plane

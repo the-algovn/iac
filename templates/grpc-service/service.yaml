@@ -3,6 +3,7 @@ kind: Service
 metadata:
   name: NAME
   namespace: NAMESPACE
+  labels: { app: NAME }
 spec:
   clusterIP: None          # headless: enables grpc-go dns:/// round_robin later
   selector: { app: NAME }
