@@ -19,4 +19,4 @@ spec:
         method: git:secret:argocd/git-creds
         gitConfig:
           branch: main
-          writeBackTarget: kustomization:apps/showcase
+          writeBackTarget: kustomization:.
