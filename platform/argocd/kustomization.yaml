@@ -7,3 +7,5 @@ resources:
 patches:
   - path: patches/slim.yaml
   - path: patches/params-cm.yaml
+  - path: patches/oidc-cm.yaml
+  - path: patches/rbac-cm.yaml

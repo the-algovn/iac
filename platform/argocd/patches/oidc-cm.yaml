@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  url: https://argocd.algovn.com
+  oidc.config: |
+    name: AlgoVN ID
+    issuer: https://id.algovn.com
+    clientID: "381588600782913889"
+    enablePKCEAuthentication: true
+    requestedScopes: ["openid", "profile", "email"]
