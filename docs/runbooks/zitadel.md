@@ -5,12 +5,16 @@ NOT reproducible from git. This runbook is the reproduction path.
 
 ## Bootstrap (once per instance)
 1. Login: admin / password-manager item `zitadel-admin-bootstrap` (forced change on first login).
+   Login name format: `<username>@algovn.id.algovn.com` — the org-domain suffix is required;
+   bare usernames don't resolve.
 2. Admin passkey: top-right avatar → Passkeys → add (Touch ID). Then ADD A SECOND one
    (phone/YubiKey) — passkey loss with passwords disabled = console lockout.
-3. Service user: Default settings → (org AlgoVN) Users → Service Users → new `iam-admin-sa`,
-   Access Token Type: Bearer → create a PAT (expiry 1y) → store as `zitadel-iam-admin-sa-pat`
-   in the password manager. Grant instance role: Default settings → Managers → add
-   `iam-admin-sa` as IAM_OWNER. (Break-glass: this PAT can re-enable password login via API.)
+3. Instance-admin API access: the setup chart auto-creates machine user iam-admin (IAM_OWNER)
+   plus in-cluster secrets iam-admin / iam-admin-pat (ns zitadel). The bootstrap PAT in that
+   secret was REVOKED 2026-07-13; the live PAT is console-created and lives ONLY in the
+   password manager as zitadel-iam-admin-sa-pat. Rotate: Console → Users → Service Users →
+   iam-admin → Personal Access Tokens. (Break-glass: this PAT can re-enable password login via
+   API.)
 4. Default org for self-registration: Organizations → New → name `users` → ⋮ → Set as default.
    (AlgoVN stays the platform/admin org that owns future product projects.)
 5. Google IdP: Default settings → Identity Providers → Google. (USER) In
@@ -19,7 +23,8 @@ NOT reproducible from git. This runbook is the reproduction path.
    ID/secret back. Options: check Automatic creation, Automatic linking (email verified),
    uncheck manual account creation.
 6. GitHub IdP: same flow — github.com → Settings → Developer settings → OAuth Apps → New;
-   callback = value shown by the Zitadel GitHub IdP form.
+   callback = value shown by the Zitadel GitHub IdP form. (PENDING as of 2026-07-13 — Google
+   only for now.)
 7. Both IdPs: activate for the instance AND ensure login policy "Allow external IdP" is on
    (Default settings → Login Behavior and Security).
 8. Passwordless-only policy (Default settings → Login Behavior and Security):
