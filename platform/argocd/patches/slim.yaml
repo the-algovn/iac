@@ -21,7 +21,9 @@ spec:
         - name: argocd-application-controller
           resources:
             requests: { cpu: 100m, memory: 256Mi }
-            limits: { memory: 512Mi }
+            # 512Mi OOMKilled once the platform hit ~20 apps + zitadel/openfga CRDs
+            # (CrashLoopBackOff x16, exit 137, 2026-07-13)
+            limits: { memory: 1536Mi }
 ---
 apiVersion: apps/v1
 kind: Deployment
