@@ -19,4 +19,4 @@ images:
   - name: ghcr.io/the-algovn/api-control-plane
     newTag: main
     newName: ghcr.io/the-algovn/api-control-plane
-    digest: sha256:23e7591e31097ac5e8c7fffa4da9cb06dd6e58d19d245cb4f97efa07103ed5c6
+    digest: sha256:3034ef4f9e7b10bf38000f70687b235bff4488f980d45e8c1f9662d862c409a2
