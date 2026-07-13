@@ -7,3 +7,4 @@ resources:
   - vmrules.yaml
   - kong-dashboard-cm.yaml
   - postgres-dashboard-cm.yaml
+  - authnz-dashboard-cm.yaml

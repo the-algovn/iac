@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authnz-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"   # same provisioning label as kong-dashboard-cm.yaml (verified)
+data:
+  authnz.json: |
+    {
+      "uid": "authnz", "title": "AuthN/Z", "schemaVersion": 39, "refresh": "1m",
+      "time": { "from": "now-6h", "to": "now" },
+      "panels": [
+        { "id": 1, "type": "stat", "title": "Components up",
+          "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+          "targets": [ { "expr": "sum(up{namespace=~\"zitadel|openfga\"})" } ] },
+        { "id": 2, "type": "timeseries", "title": "Memory (working set)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+          "targets": [ { "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=~\"zitadel|openfga\", container!=\"\"})", "legendFormat": "{{pod}}" } ] },
+        { "id": 3, "type": "timeseries", "title": "CPU",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+          "targets": [ { "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"zitadel|openfga\", container!=\"\"}[5m]))", "legendFormat": "{{pod}}" } ] }
+      ]
+    }
