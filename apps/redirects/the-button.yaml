@@ -1,0 +1,42 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: the-button-redirect
+  namespace: redirects
+plugin: redirect
+config:
+  status_code: 301
+  location: https://algovn.com/the-button
+---
+# Backend is never reached: the redirect plugin short-circuits in the access
+# phase. The selector-less service only satisfies the Ingress backend schema.
+apiVersion: v1
+kind: Service
+metadata:
+  name: no-op
+  namespace: redirects
+spec:
+  ports:
+    - port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: the-button
+  namespace: redirects
+  annotations:
+    konghq.com/plugins: the-button-redirect
+spec:
+  ingressClassName: kong
+  rules:
+    - host: the-button.algovn.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: no-op
+                port: { number: 80 }
+  tls:
+    - hosts: [the-button.algovn.com]
