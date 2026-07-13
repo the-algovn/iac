@@ -1,7 +1,8 @@
 # Zitadel (id.algovn.com) — bootstrap & operations
 IdP for all SaaS products (spec 2026-07-13). Console: /ui/console. IdP CONTENT (orgs,
-projects, IdP configs, policies) lives in Zitadel's DB — backed up via postgres-restore.md,
-NOT reproducible from git. This runbook is the reproduction path.
+projects, IdP configs, policies) lives in Zitadel's DB and is NOT backed up — the cluster
+is backup-less (see postgres.md NO BACKUPS warning; risk re-accepted 2026-07-13). This
+runbook is the only reproduction path.
 
 ## Bootstrap (once per instance)
 1. Login: admin / password-manager item `zitadel-admin-bootstrap` (forced change on first login).
@@ -33,6 +34,12 @@ NOT reproducible from git. This runbook is the reproduction path.
    - ONLY AFTER step 2 verified on a fresh browser: Username Password allowed: OFF.
 9. Branding (optional now): Default settings → Branding — logo/colors; custom login app is a
    deferred project (spec §9).
+10. Instance feature loginV2: set required via API —
+    curl -s -X PUT -H "Authorization: Bearer $ZPAT" -H 'Content-Type: application/json' \
+      https://id.algovn.com/v2beta/features/instance \
+      -d '{"loginV2":{"required":true,"baseUri":"https://id.algovn.com/ui/v2/login"}}'
+    (check: GET /v2/features/instance shows loginV2.required=true). Without it, standard
+    flows may use the legacy v1 login. See "Login versions & device flows" below.
 
 ## Verification (fresh private browser window each)
 - Google signup: /ui/v2/login → Google → new user lands in org `users`.

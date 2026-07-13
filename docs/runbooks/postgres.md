@@ -2,6 +2,7 @@
 Shared single-instance PostgreSQL 18 cluster `pg`, ns `postgres` (operator `cnpg` 1.30.0 in ns `cnpg-system`).
 ⚠️ NO BACKUPS (decision 2026-07-12) — node/disk loss = data loss. Follow-up before anything
 irreplaceable lands here: WAL archiving + base backups to Cloudflare R2 (CNPG Barman Cloud plugin).
+(2026-07-13: zitadel/openfga data landed; risk re-accepted — see README + authnz spec §7.)
 
 ## Connect
 In-cluster: `pg-rw.postgres.svc:5432`. LAN: `192.168.102.201:5432` (svclb `pg-lb`). Never `.200` — the Pi's hand-managed ufw blocks 5432 even though svclb advertises both node IPs.

@@ -165,8 +165,8 @@ is explicit:
   on w1 = permanent loss of all identities. Re-entry: the plan's Tasks 1–3
   remain executable as written (Task 1, the barman-cloud plugin, is deployed).
 - **Observability:** VMServiceScrapes for both (Prometheus metrics), Grafana
-  dashboards provisioned from git, logs via existing Alloy. New alert: backup
-  staleness (last successful CNPG backup > 26h).
+  dashboards provisioned from git, logs via existing Alloy. ~~New alert: backup
+  staleness~~ (descoped with backups, 2026-07-13).
 
 ## 8. Verification criteria
 

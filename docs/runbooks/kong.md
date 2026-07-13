@@ -16,9 +16,12 @@ Admin API is cluster-internal; Kong Manager disabled. Rate limiting: policy `loc
 3. Bind on the Ingress: annotation `konghq.com/plugins: "<plugin-names>"`.
 4. Verify: curl without key → 401; with `apikey: <KEY>` header → 200.
 
-## JWT validation (when an issuer exists)
-`plugin: jwt` KongPlugin + KongConsumer with a jwt credential secret holding the issuer's
-public key. Not deployed — pattern only.
+## JWT validation
+Deployed (2026-07-13). Protect a route by annotating its Ingress `konghq.com/plugins:
+jwt-auth`. The plugin is a CLUSTER-scoped `KongClusterPlugin` named `jwt-auth` — do NOT
+create a namespaced `KongPlugin` with the same name. Consumer `zitadel-issuer` holds the
+pinned Zitadel public key. Key rotation: `docs/runbooks/zitadel-key-rotation.md`. Token
+contract: `docs/authnz-conventions.md`.
 
 ## Debug
 - Routes not admitted: `kubectl -n kong logs deploy -l app.kubernetes.io/component=controller --tail 50`
