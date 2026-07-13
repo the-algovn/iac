@@ -21,7 +21,7 @@ zitadel:
           Username: zitadel
           SSL: { Mode: disable }
 resources:
-  requests: { cpu: 100m, memory: 300Mi }
+  requests: { cpu: 150m, memory: 384Mi }
   limits: { memory: 1Gi }
 env:
   - name: GOMEMLIMIT
@@ -36,8 +36,8 @@ ingress:
 login:
   enabled: true
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
-    limits: { memory: 256Mi }
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { memory: 512Mi }
   ingress:
     enabled: true
     className: kong

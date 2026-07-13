@@ -25,5 +25,5 @@ spec:
             grpc: { port: 9090 }
             initialDelaySeconds: 10
           resources:
-            requests: { cpu: 25m, memory: 64Mi }
-            limits: { memory: 128Mi }
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }

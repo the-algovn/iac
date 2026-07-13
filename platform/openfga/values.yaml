@@ -27,5 +27,5 @@ telemetry:
   metrics:
     enabled: true                  # 0.0.0.0:2112, container port name: metrics
 resources:
-  requests: { cpu: 50m, memory: 64Mi }
-  limits: { memory: 192Mi }
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { memory: 256Mi }

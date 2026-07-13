@@ -20,10 +20,10 @@ spec:
       containers:
         - name: argocd-application-controller
           resources:
-            requests: { cpu: 100m, memory: 256Mi }
+            requests: { cpu: 200m, memory: 512Mi }
             # 512Mi OOMKilled once the platform hit ~20 apps + zitadel/openfga CRDs
             # (CrashLoopBackOff x16, exit 137, 2026-07-13)
-            limits: { memory: 1536Mi }
+            limits: { memory: 2Gi }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,8 +35,8 @@ spec:
       containers:
         - name: argocd-repo-server
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 384Mi }
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -48,8 +48,8 @@ spec:
       containers:
         - name: argocd-server
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 256Mi }
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 512Mi }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -61,7 +61,7 @@ spec:
       containers:
         - name: redis
           resources:
-            requests: { cpu: 25m, memory: 32Mi }
+            requests: { cpu: 25m, memory: 64Mi }
             limits: { memory: 128Mi }
 ---
 apiVersion: apps/v1
@@ -74,5 +74,5 @@ spec:
       containers:
         - name: argocd-applicationset-controller
           resources:
-            requests: { cpu: 25m, memory: 64Mi }
-            limits: { memory: 192Mi }
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { memory: 256Mi }

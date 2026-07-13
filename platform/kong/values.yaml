@@ -2,8 +2,8 @@ controller:
   ingressController:
     ingressClass: kong
     resources:
-      requests: { cpu: 50m, memory: 128Mi }
-      limits: { memory: 256Mi }
+      requests: { cpu: 100m, memory: 192Mi }
+      limits: { memory: 512Mi }
 gateway:
   image:
     repository: kong
@@ -22,5 +22,5 @@ gateway:
     ssl_cert: /etc/secrets/wildcard-algovn-tls/tls.crt
     ssl_cert_key: /etc/secrets/wildcard-algovn-tls/tls.key
   resources:
-    requests: { cpu: 100m, memory: 256Mi }
+    requests: { cpu: 150m, memory: 256Mi }
     limits: { memory: 1Gi }

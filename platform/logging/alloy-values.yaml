@@ -30,9 +30,10 @@ alloy:
         endpoint { url = "http://loki.logging.svc.cluster.local:3100/loki/api/v1/push" }
       }
   mounts: { extra: [{ name: journal, mountPath: /var/log/journal, readOnly: true }] }
+  # DaemonSet — also lands on the Pi control plane, so kept modest
   resources:
-    requests: { cpu: 50m, memory: 96Mi }
-    limits: { memory: 192Mi }
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
 controller:
   type: daemonset
   volumes:
