@@ -159,10 +159,11 @@ is explicit:
   gained a second node (`w1`, hosts Postgres/vmsingle/Loki) — pods schedule
   across both nodes, so this fits, but verification still gates on headroom
   per node (§8.9). Pressure valves as in the Kong spec remain available.
-- **Backups — the deferred trigger fires:** CNPG scheduled backups, nightly
-  base backup + continuous WAL archiving to Cloudflare R2 (S3-compatible, free
-  tier), credentials sealed. `docs/runbooks/postgres-restore.md` with a tested
-  restore procedure. Covers both new DBs and every future stateful app.
+- **Backups:** ~~CNPG scheduled backups to Cloudflare R2~~ **Descoped at
+  execution (user decision, 2026-07-13)** — the cluster remains backup-less;
+  postgres.md's NO BACKUPS warning stays accurate. Accepted risk: disk loss
+  on w1 = permanent loss of all identities. Re-entry: the plan's Tasks 1–3
+  remain executable as written (Task 1, the barman-cloud plugin, is deployed).
 - **Observability:** VMServiceScrapes for both (Prometheus metrics), Grafana
   dashboards provisioned from git, logs via existing Alloy. New alert: backup
   staleness (last successful CNPG backup > 26h).
@@ -184,9 +185,8 @@ is explicit:
 6. OpenFGA from in-cluster via gRPC: apply demo model, write tuple → `Check`
    allows, delete tuple → denies.
 7. Key rotation runbook executed once end-to-end with no 401 window.
-8. Backup/restore runbook executed once: nightly backup lands in R2; restore
-   into a scratch CNPG cluster recovers a known row; staleness alert rule
-   loaded and querying.
+8. ~~Backup/restore runbook executed once~~ Waived — backups descoped at
+   execution (user decision, 2026-07-13; see §7).
 9. All Argo apps Synced/Healthy; `free -h` available ≥ 250Mi post-deploy on
    each node (pressure valves execute before sign-off if breached).
 10. Both services' metrics in VictoriaMetrics, dashboards render, logs in Loki.
