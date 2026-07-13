@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zitadel
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.zitadel.com
+      chart: zitadel
+      targetRevision: 9.34.0
+      helm:
+        releaseName: zitadel
+        valueFiles:
+          - $values/platform/zitadel/values.yaml
+    - repoURL: https://github.com/the-algovn/iac.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/the-algovn/iac.git
+      targetRevision: main
+      path: platform/zitadel/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: zitadel
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry:
+      limit: 5
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }

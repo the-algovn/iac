@@ -1,0 +1,47 @@
+zitadel:
+  masterkeySecretName: zitadel-masterkey
+  configSecretName: zitadel-config   # merges over configmapConfig; holds DB passwords + FirstInstance
+  configmapConfig:
+    ExternalDomain: id.algovn.com
+    ExternalPort: 443
+    ExternalSecure: true
+    TLS:
+      Enabled: false                 # TLS terminates at CF edge / Kong default cert
+    Database:
+      Postgres:
+        Host: pg-rw.postgres.svc
+        Port: 5432
+        Database: zitadel
+        MaxOpenConns: 10
+        MaxIdleConns: 5
+        User:
+          Username: zitadel
+          SSL: { Mode: disable }
+        Admin:
+          Username: zitadel
+          SSL: { Mode: disable }
+resources:
+  requests: { cpu: 100m, memory: 300Mi }
+  limits: { memory: 512Mi }
+env:
+  - name: GOMEMLIMIT
+    value: 450MiB
+ingress:
+  enabled: true
+  className: kong
+  hosts:
+    - host: id.algovn.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls: [{ hosts: [id.algovn.com] }]
+login:
+  enabled: true
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+  ingress:
+    enabled: true
+    className: kong
+    hosts:
+      - host: id.algovn.com
+        paths: [{ path: /ui/v2/login, pathType: Prefix }]
+    tls: [{ hosts: [id.algovn.com] }]
