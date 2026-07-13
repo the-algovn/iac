@@ -1,0 +1,12 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: openfga
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [openfga] }
+  selector:
+    matchLabels: { app.kubernetes.io/name: openfga }
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics

@@ -1,0 +1,25 @@
+replicaCount: 1
+datastore:
+  engine: postgres
+  uriSecret: openfga-datastore     # key: uri
+  applyMigrations: true
+  waitForMigrations: true
+  # migrationType: initContainer — deviation 2: default "job" renders the
+  # migrate Job as a Helm post-install hook (Argo PostSync) while the
+  # Deployment's own initContainer waits on that Job, so the app can never
+  # go Healthy (PostSync only runs after Healthy). initContainer mode runs
+  # the migration inline in the Deployment pod spec instead — no hook, no
+  # deadlock.
+  migrationType: initContainer
+authn:
+  method: preshared
+  preshared:
+    keysSecret: openfga-preshared  # key: keys
+playground:
+  enabled: false
+telemetry:
+  metrics:
+    enabled: true                  # 0.0.0.0:2112, container port name: metrics
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { memory: 192Mi }
