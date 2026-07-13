@@ -1,0 +1,14 @@
+[Unit]
+Description=cloudflared tunnel {{ cloudflared_tunnel }} (ansible-managed)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+TimeoutStartSec=15
+Type=notify
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel --config /etc/cloudflared/{{ cloudflared_tunnel }}.yml run
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

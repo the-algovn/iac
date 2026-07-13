@@ -5,10 +5,17 @@ all:
         algovn:
           ansible_host: 192.168.102.200
           ansible_connection: local
+          cloudflared_tunnel: algovn-pi
+          cloudflared_ingress:
+            - { hostname: ssh-pi.algovn.com, service: "ssh://localhost:22" }
+            - { hostname: k8s.algovn.com, service: "tcp://localhost:6443" }
     agents:
       hosts:
         algovn-w1:
           ansible_host: 192.168.102.201
+          cloudflared_tunnel: algovn-w1
+          cloudflared_ingress:
+            - { hostname: ssh-w1.algovn.com, service: "ssh://localhost:22" }
   vars:
     ansible_user: ducle
     k3s_version: "v1.36.2+k3s1"

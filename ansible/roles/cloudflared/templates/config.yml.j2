@@ -1,0 +1,10 @@
+tunnel: {{ cloudflared_tunnel }}
+credentials-file: /etc/cloudflared/{{ cloudflared_tunnel }}.json
+metrics: localhost:2001
+no-autoupdate: true
+ingress:
+{% for rule in cloudflared_ingress %}
+  - hostname: "{{ rule.hostname }}"
+    service: {{ rule.service }}
+{% endfor %}
+  - service: http_status:404

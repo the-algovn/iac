@@ -1,0 +1,53 @@
+- name: Cloudflare package signing key
+  ansible.builtin.get_url:
+    url: https://pkg.cloudflare.com/cloudflare-public-v2.gpg
+    dest: /usr/share/keyrings/cloudflare-public-v2.gpg
+    mode: "0644"
+
+- name: cloudflared apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/cloudflare-public-v2.gpg] https://pkg.cloudflare.com/cloudflared any main"
+    filename: cloudflared
+    state: present
+
+- name: Install cloudflared
+  ansible.builtin.apt:
+    name: cloudflared
+    state: present
+    update_cache: true
+
+- name: /etc/cloudflared directory
+  ansible.builtin.file:
+    path: /etc/cloudflared
+    state: directory
+    mode: "0755"
+
+- name: Tunnel credentials (from controller ~/.secrets, never in git)
+  ansible.builtin.copy:
+    src: "{{ lookup('env', 'HOME') }}/.secrets/cloudflared/{{ cloudflared_tunnel }}.json"
+    dest: "/etc/cloudflared/{{ cloudflared_tunnel }}.json"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart cloudflared tunnel
+
+- name: Tunnel config
+  ansible.builtin.template:
+    src: config.yml.j2
+    dest: "/etc/cloudflared/{{ cloudflared_tunnel }}.yml"
+    mode: "0644"
+  notify: restart cloudflared tunnel
+
+- name: Systemd unit (namespaced — must NOT clash with the Pi's production cloudflared.service)
+  ansible.builtin.template:
+    src: cloudflared.service.j2
+    dest: "/etc/systemd/system/cloudflared-{{ cloudflared_tunnel }}.service"
+    mode: "0644"
+  notify: restart cloudflared tunnel
+
+- name: Enable and start tunnel service
+  ansible.builtin.systemd:
+    name: "cloudflared-{{ cloudflared_tunnel }}.service"
+    enabled: true
+    state: started
+    daemon_reload: true

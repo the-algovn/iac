@@ -16,3 +16,9 @@
   become: true
   roles:
     - { role: k3s_agent, tags: [k3s] }
+
+- name: cloudflared host tunnels (remote access)
+  hosts: all
+  become: true
+  roles:
+    - { role: cloudflared, tags: [cloudflared] }
