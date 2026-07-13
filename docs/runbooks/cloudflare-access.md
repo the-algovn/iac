@@ -20,3 +20,14 @@ Access pretends to send the code even for emails no policy allows (anti-enumerat
 Check, in order: the policy's Include→Emails entry matches the typed email EXACTLY;
 spam folder (`noreply@notify.cloudflare.com`); Zero Trust → Settings → Authentication →
 Login methods includes "One-time PIN"; the app accepts that identity provider.
+
+## Pending (2026-07-13): remote-access hostnames
+`ssh-pi.algovn.com`, `ssh-w1.algovn.com`, `k8s.algovn.com` (host tunnels,
+docs/runbooks/remote-access.md) are NOT yet gated — apps deferred at setup.
+Create: apps `ssh-pi`/`ssh-w1`/`k8s`, one per hostname, same `admin-only` policy
+as above. Then verify: `curl -s -o /dev/null -w '%{http_code}' https://<host>/`
+→ `302`, and move these hosts to the protected list above.
+
+## Known gap
+`ssh.algovn.com` (pre-existing production tunnel `algovn`) is NOT Access-protected —
+follow-up candidate; do not confuse it with `ssh-pi.algovn.com`.

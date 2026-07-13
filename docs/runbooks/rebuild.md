@@ -16,3 +16,6 @@ Needs from password manager: sealed-secrets key, Argo admin pw, Grafana admin pw
    (`node-taint` in the k3s config), so workloads return to workers automatically. A full rebuild
    recreates the `pg` cluster empty — see docs/runbooks/postgres.md for backups.
 Firewall: the Pi's ufw is hand-managed (not ansible) — a re-flash loses it. Re-enable: 22/tcp limit, 80,443/tcp allow, plus k3s inter-node 6443/tcp, 8472/udp, 10250/tcp from 192.168.102.0/24 (agents silently fail to join without these; see add-node.md).
+9. Host tunnels (remote ssh + kubectl, docs/runbooks/remote-access.md): restore
+   ~/.secrets/cloudflared/*.json from password manager (or recreate tunnels), then
+   `ansible-playbook site.yml --tags cloudflared`.
