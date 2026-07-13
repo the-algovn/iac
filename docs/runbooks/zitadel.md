@@ -49,6 +49,12 @@ runbook is the only reproduction path.
     Errors.App.NotFound); the redirect URI and the role AUTHORIZATION grant must both exist
     before login works (missing grant ⇒ Grafana "IdP did not return a role attribute" with
     strict mapping). Recreating the app issues a NEW client_id/secret — update the quoted client_id in platform/monitoring/values.yaml and reseal monitoring/grafana-oauth per secrets.md.
+    App `argocd` — Web, auth method PKCE (NO secret), Dev Mode ON (needed for the
+    plain-http CLI loopback redirect), redirects
+    https://argocd.algovn.com/auth/callback + http://localhost:8085/auth/callback.
+    No role grant — Argo RBAC maps by email (platform/argocd/patches/rbac-cm.yaml).
+    Recreation issues a new client_id → update the quoted clientID in
+    platform/argocd/patches/oidc-cm.yaml.
 
 ## Verification (fresh private browser window each)
 - Google signup: /ui/v2/login → Google → new user lands in org `users`.
