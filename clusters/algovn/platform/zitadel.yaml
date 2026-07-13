@@ -18,9 +18,6 @@ spec:
     - repoURL: https://github.com/the-algovn/iac.git
       targetRevision: main
       ref: values
-    - repoURL: https://github.com/the-algovn/iac.git
-      targetRevision: main
-      path: platform/zitadel/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: zitadel
