@@ -11,3 +11,4 @@ IaC + GitOps source of truth for the `algovn` k3s cluster (Raspberry Pi 5).
 Cluster live. Acceptance: docs/runbooks/verify.md — all green on 2026-07-12 (Telegram alerting skipped by decision; Renovate installation pending).
 Kong gateway + gRPC conventions live — 2026-07-12, spec docs/superpowers/specs/2026-07-12-kong-gateway-grpc-conventions-design.md.
 Shared Postgres live (CloudNativePG 1.30.0, PG 18) — 2026-07-12, runbook docs/runbooks/postgres.md.
+Remote access (ssh + kubectl) via cloudflared host tunnels — 2026-07-13, see docs/runbooks/remote-access.md; Access gate pending.

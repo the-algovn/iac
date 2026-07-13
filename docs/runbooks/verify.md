@@ -15,4 +15,7 @@ Run on the Pi with `export KUBECONFIG=$HOME/.kube/config`.
 11. Existing production tunnel untouched: `portainer.algovn.com`, `ssh.algovn.com`,
     `the-button-api.algovn.com`, `the-song-api.algovn.com` still CNAME to tunnel
     15675449-… (NOT the cluster tunnel cb033e8e-…).
+12. cloudflared host tunnels: `systemctl is-active cloudflared-algovn-pi` (Pi) /
+    `cloudflared-algovn-w1` (w1) → active; after Access apps exist, each of
+    ssh-pi/ssh-w1/k8s.algovn.com must curl → 302.
 Note: the Pi kubeconfig's default namespace is `argocd` — ad-hoc `kubectl run` pods land there unless you pass `-n`.

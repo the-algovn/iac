@@ -17,3 +17,4 @@
    (DaemonSet pods just restart in place; everything else reschedules to workers):
    `for ns in $(kubectl get ns -o jsonpath='{.items[*].metadata.name}'); do kubectl delete pods -n $ns --field-selector spec.nodeName=algovn --wait=false; done`
 HA servers (3+ nodes) = separate project: sqlite→etcd migration (spec §5).
+New nodes skip the cloudflared remote-access play unless you define cloudflared_tunnel + cloudflared_ingress host vars (see docs/runbooks/remote-access.md).

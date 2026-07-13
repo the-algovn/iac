@@ -29,7 +29,11 @@ hostname 302-redirects to the Access login.
 ## Provisioning / rebuild
 1. Credentials: `~ducle/.secrets/cloudflared/{algovn-pi,algovn-w1}.json` on the Pi —
    NOT in git. If lost: delete + recreate tunnels (`cloudflared tunnel delete <t>`,
-   `create <t>`, re-copy JSON, re-run `route dns` for the hostnames above).
+   `create <t>`, re-copy JSON) — recreating yields a NEW tunnel ID, so plain `route dns`
+   fails ("record already exists"); re-point existing hostnames with
+   `cloudflared tunnel route dns --overwrite-dns <t> <hostname>`. Needs
+   `~/.cloudflared/cert.pem`; if that's lost too: `cloudflared tunnel login` (see
+   rebuild.md step 6).
 2. `cd ~/iac/ansible && ansible-playbook site.yml --tags cloudflared`
 3. Re-check Access apps (cloudflare-access.md) — they live only in Cloudflare.
 

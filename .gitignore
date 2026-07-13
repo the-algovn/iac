@@ -3,3 +3,5 @@
 kubeconfig*
 .secrets/
 __pycache__/
+docs/superpowers/
+.superpowers/
