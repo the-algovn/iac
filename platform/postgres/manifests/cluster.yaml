@@ -19,9 +19,11 @@ spec:
     limits: { memory: 1Gi }
   managed:
     roles:
+      # createdb: zitadel init probes its DB via CREATE DATABASE (42501 without it; 42P04 "exists" is its success path)
       - name: zitadel
         ensure: present
         login: true
+        createdb: true
         passwordSecret: { name: pg-role-zitadel }
     services:
       additional:
