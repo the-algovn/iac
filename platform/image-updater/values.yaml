@@ -5,6 +5,7 @@ config:
       prefix: ghcr.io
       api_url: https://ghcr.io
       default: true
+      credentials: pullsecret:argocd/ghcr-creds
 resources:
   requests: { cpu: 10m, memory: 48Mi }
   limits: { memory: 96Mi }
