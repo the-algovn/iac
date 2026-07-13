@@ -8,6 +8,14 @@ zitadel-key-rotation.md.
 Ingress annotation: `konghq.com/plugins: jwt-auth`. Kong 401s missing/invalid/expired
 tokens (RS256, kid-matched against the committed public key). Machine routes keep key-auth.
 
+**Exception — api.algovn.com:** this host is routed to `api-control-plane`
+WITHOUT Kong's jwt-auth plugin. The control plane verifies RS256 signatures
+against Zitadel's JWKS (auto-refreshed — no committed public key, no manual
+rotation) and enforces per-route rules (anonymous / authenticated / role:<r>)
+from GitOps registration files. Upstream services behind it keep the same
+contract: parse the forwarded token payload, never re-verify. See
+docs/api-conventions.md.
+
 ## What your service does with the token
 Kong verified the SIGNATURE; your service still parses the payload for identity (read-only
 base64 decode of segment 2 — do NOT re-verify, do NOT skip parsing):
