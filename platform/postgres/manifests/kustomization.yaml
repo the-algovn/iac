@@ -5,3 +5,5 @@ resources:
   - podscrape.yaml
   - db-zitadel.yaml
   - pg-role-zitadel-sealed.yaml
+  - db-openfga.yaml
+  - pg-role-openfga-sealed.yaml

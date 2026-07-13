@@ -25,6 +25,10 @@ spec:
         login: true
         createdb: true
         passwordSecret: { name: pg-role-zitadel }
+      - name: openfga
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-openfga }
     services:
       additional:
         - selectorType: rw

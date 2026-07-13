@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: openfga
+  namespace: postgres
+spec:
+  name: openfga
+  owner: openfga
+  cluster: { name: pg }

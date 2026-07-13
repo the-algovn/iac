@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: openfga-preshared
+  namespace: openfga
+spec:
+  encryptedData:
+    keys: AgBvSxHRW31HooirLz/7R9ytarNGrT/jomOTfHg0pgpaiRITBuHypEYH1NUM01AKRCPxTPWg+2/DJrSbUHDIebTj+YYE5cDtHiBM/AA7oiUU+5qWvB/lgOhnZUgm8egpUZZXqSTbI2JeSmSwgJAUU5LgpYR/XsAZK3XH3QHT3cl+Is8f3Lo2QbAmiolrR85lbpXcw6FbjhxcJD2DrLIIPKwiPnOKUqKYnoe/55X8bcRyqUaY2Zs/E+NhB4jXlMYmfzA/2/X0SAgJdKLVjtoSrPJuVm6Y331WuYvUennEHIaFTH0oRfCUiiCONxHERZQEhc2eJl3tPuJQEwBu+ajbKvbhm+OegSFCMRyw8q3SPxFFLP8qSfYDLGwJM0/hg3/KGmtZ9P32DJ/LRtLUmqj2TUzUhD01aVnYDHa33VFubPSLQPXnsu1iXav/r9B8zQa6WjbbWUADxWieTBXoBN9MkUbVotNcrmbm3LhrfotcKemyGIU0d81HpzGrfIC8o0WMocDNCKlHj1BcnCxeaeo0WYgktPGHWskz/c9ZWBrPuwu4dLr8qVW6+Airz+J+SsA7itqlGqtKrYt9Q1PHsHGvZEQEjLQKVQc/v+B/7FJlO4QEDtRno3mBFGXb8nvtuCMjF9BMadk9mVltgNENwVl7bdbKSRo1Q3pQ9d0y8qAyKT3jmuTuC7v3AYXOcJV8CoisKeu1nIrPaW4ArBENBzeewJXQm/MuRMw7LrI+tCLlGCgWkIyBvQDut09qK7e6Zz1jdWGe9UBZOsPY9GXIaOXd16iQ
+  template:
+    metadata:
+      name: openfga-preshared
+      namespace: openfga
