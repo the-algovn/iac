@@ -35,9 +35,26 @@ grafana:
     existingSecret: grafana-admin
     userKey: admin-user
     passwordKey: admin-password
+  envFromSecret: grafana-oauth   # injects GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
   grafana.ini:
     server:
       root_url: https://grafana.algovn.com
+    auth.generic_oauth:
+      enabled: true
+      name: AlgoVN ID
+      auto_login: true
+      allow_sign_up: true
+      use_pkce: true
+      client_id: 381582848160760161
+      scopes: openid profile email urn:zitadel:iam:org:projects:roles
+      auth_url: https://id.algovn.com/oauth/v2/authorize
+      token_url: https://id.algovn.com/oauth/v2/token
+      api_url: https://id.algovn.com/oidc/v1/userinfo
+      role_attribute_strict: true
+      role_attribute_path: >-
+        contains(keys("urn:zitadel:iam:org:project:roles" || `{}`), 'admin') && 'Admin'
+        || contains(keys("urn:zitadel:iam:org:project:roles" || `{}`), 'editor') && 'Editor'
+        || contains(keys("urn:zitadel:iam:org:project:roles" || `{}`), 'viewer') && 'Viewer'
   resources:
     requests: { cpu: 50m, memory: 128Mi }
     limits: { memory: 256Mi }
