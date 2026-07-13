@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: showcase
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd-image-updater.argoproj.io/image-list: showcase=ghcr.io/the-algovn/web-showcase:main
+    argocd-image-updater.argoproj.io/showcase.update-strategy: digest
+    argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/the-algovn/iac.git
+    targetRevision: main
+    path: apps/showcase
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: showcase
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }

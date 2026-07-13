@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: showcase
+  namespace: showcase
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: showcase }
+  template:
+    metadata:
+      labels: { app: showcase }
+    spec:
+      containers:
+        - name: showcase
+          image: ghcr.io/the-algovn/web-showcase:main
+          ports: [{ containerPort: 3000 }]
+          readinessProbe:
+            httpGet: { path: /ui-showcase, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ui-showcase, port: 3000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
+      imagePullSecrets:
+        - name: registry-creds
