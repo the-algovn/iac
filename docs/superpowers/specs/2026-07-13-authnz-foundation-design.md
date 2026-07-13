@@ -28,6 +28,7 @@ app" (§13) — identity data is the first irreplaceable state.
 | Hosting | Self-hosted on cluster (no external IdP dependency) |
 | Stack | **Zitadel** (IdP) + **OpenFGA** (permissions), both on existing CNPG Postgres. Chosen over Ory stack (headless — would require building login UI + org model) and Keycloak (JVM footprint exceeds Pi budget) |
 | Token validation | At the Kong edge via `jwt` plugin (user decision; mechanics in §4) |
+| Login UI | Stock Zitadel **login v2** pod (chart default; v4 deprecates the built-in v1 login). Custom login app sharing the platform design system = deferred (§9) |
 
 **Out of scope:** any concrete SaaS app, email/SMTP flows, Kong-issued tokens
 (Kong stays validate-only per its spec), migrating Argo CD/Grafana off
@@ -47,8 +48,8 @@ Kong [jwt plugin: 401 gate] ─▶ app.algovn.com ─▶ SaaS service ───�
                                        └── gRPC h2c east-west ─▶ OpenFGA :9090 (never public)
 ```
 
-- **Zitadel** (`platform/zitadel/`): Go single binary + built-in login UI,
-  public at `id.algovn.com` via a normal kong-class Ingress. The only OIDC
+- **Zitadel** (`platform/zitadel/`): Go binary + chart-managed **login v2**
+  pod (Next.js), public at `id.algovn.com` via a normal kong-class Ingress. The only OIDC
   issuer on the platform; each SaaS product registers as a Zitadel application
   → SSO falls out for free.
 - **OpenFGA** (`platform/openfga/`): cluster-internal only, follows the gRPC
@@ -71,7 +72,8 @@ is explicit:
   with Zitadel's current RS256 signing **public key** (issuer
   `https://id.algovn.com`). Public keys aren't secret → plain committed Secret,
   not a SealedSecret.
-- **Rotation is controlled, not automatic:** Zitadel *web keys* (v2.71+) put
+- **Rotation is controlled, not automatic:** Zitadel *web keys* (managed
+  web-key API, standard in the deployed v4) put
   signing-key rotation under our control instead of auto-rotating under Kong.
   The plugin is configured with `key_claim_name: kid` so credentials are
   matched by the token's `kid` header — two credentials (old + new key) can
@@ -149,12 +151,14 @@ is explicit:
 
   | Component | RAM | Notes |
   |---|---|---|
-  | Zitadel | 300Mi → 512Mi | `GOMEMLIMIT` tuned; login UI included |
+  | Zitadel | 300Mi → 512Mi | `GOMEMLIMIT` tuned |
+  | Zitadel login v2 | 128Mi → 256Mi | Next.js pod (chart-managed) |
   | OpenFGA | 64Mi → 192Mi | |
 
-  Honest budget note: ~400–450Mi net new lands the Pi near its ceiling.
-  Pressure valves as in the Kong spec (zram, trim monitoring limits); real
-  relief remains the second-node trigger. Verification gates on headroom (§8.9).
+  Budget note: ~500Mi requested net new. Since the k3s spec, the cluster
+  gained a second node (`w1`, hosts Postgres/vmsingle/Loki) — pods schedule
+  across both nodes, so this fits, but verification still gates on headroom
+  per node (§8.9). Pressure valves as in the Kong spec remain available.
 - **Backups — the deferred trigger fires:** CNPG scheduled backups, nightly
   base backup + continuous WAL archiving to Cloudflare R2 (S3-compatible, free
   tier), credentials sealed. `docs/runbooks/postgres-restore.md` with a tested
@@ -183,8 +187,8 @@ is explicit:
 8. Backup/restore runbook executed once: nightly backup lands in R2; restore
    into a scratch CNPG cluster recovers a known row; staleness alert rule
    loaded and querying.
-9. All Argo apps Synced/Healthy; `free -h` available ≥ 250Mi post-deploy
-   (pressure valves execute before sign-off if breached).
+9. All Argo apps Synced/Healthy; `free -h` available ≥ 250Mi post-deploy on
+   each node (pressure valves execute before sign-off if breached).
 10. Both services' metrics in VictoriaMetrics, dashboards render, logs in Loki.
 
 ## 9. Explicitly deferred (with triggers)
@@ -198,3 +202,4 @@ is explicit:
 | Migrating Argo CD/Grafana off CF Access onto Zitadel SSO | Desire to consolidate; CF Access is fine today |
 | Zitadel/OpenFGA HA replicas | Second node joins |
 | Self-service org creation, SCIM, MFA policies, audit-log shipping | First real team customer / compliance need |
+| Custom login app (fork of Zitadel's login v2, restyled) in `the-algovn/login` | First product design system exists — gets its own spec/plan |
