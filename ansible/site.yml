@@ -21,4 +21,4 @@
   hosts: all
   become: true
   roles:
-    - { role: cloudflared, tags: [cloudflared] }
+    - { role: cloudflared, tags: [cloudflared], when: cloudflared_tunnel is defined }
