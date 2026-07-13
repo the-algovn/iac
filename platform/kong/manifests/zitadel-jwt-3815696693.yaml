@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: zitadel-jwt-3815696693
+  namespace: kong
+  labels:
+    konghq.com/credential: jwt
+stringData:
+  algorithm: RS256
+  key: "381569669305205089"
+  rsa_public_key: |
+    -----BEGIN PUBLIC KEY-----
+    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxWA9dEkchlxZXVPNvg/Y
+    mZ2/tZR1zJc8pY4RqidTVz+QDvU+2ZWcYORYLDkfIgSt7gvutWvWmYFYoLj1YN6b
+    ePNt4Es92jyNt2ZMGPES5QetcT9z3MQl+U3KrP9UG/cEpxQkGaHNjfiZPXvVSsWJ
+    YYrkkNQJzbsER0Se3DM4kZAzrVZyfdU2G25XtgDceLaa2Pm0op9srLVeUJn0vt21
+    KNuOX+VUC1gr/ODD6o1FcJTHZQl4OSbKNTFNjOeIUUuD6qB76FExdr9QNgiu2cOJ
+    ZDmZx+d2yetCUwsPJrGQNir+KyBoQdArCo4UsWOIgTh4x+5IL8iyReun4BpqjpB1
+    nQIDAQAB
+    -----END PUBLIC KEY-----
