@@ -36,7 +36,7 @@ NOT reproducible from git. This runbook is the reproduction path.
 
 ## Verification (fresh private browser window each)
 - Google signup: /ui/v2/login → Google → new user lands in org `users`.
-- GitHub signup: same.
+- GitHub signup: PENDING (IdP not configured yet).
 - Passkey: log into account page (/ui/v2/login → self-service), add passkey, log out,
   log in with passkey ONLY. Confirm NO password option is offered anywhere.
 
@@ -45,3 +45,13 @@ NOT reproducible from git. This runbook is the reproduction path.
   PUT /admin/v1/policies/login {"allowUsernamePassword": true} — then fix and re-disable.
 - New SaaS product onboarding: see docs/authnz-conventions.md.
 - Key rotation: docs/runbooks/zitadel-key-rotation.md.
+
+## Login versions & device flows (findings 2026-07-13)
+- Instance feature `loginV2` = required (set via API; GET /v2/features/instance to check).
+  All standard OIDC flows use login v2 (/ui/v2/login).
+- EXCEPTION: device-code flows fall back to the legacy v1 login (login v2 has no device
+  support yet). v1 sessions are SEPARATE from v2, and with password auth disabled v1
+  auto-redirects IdP-linked users straight to the IdP.
+- IdP callbacks differ per login version: v2 uses https://id.algovn.com/idps/callback,
+  v1 uses https://id.algovn.com/ui/login/login/externalidp/callback. Register BOTH in
+  every IdP's OAuth client (Google: v2 registered, v1 pending; GitHub: both when added).

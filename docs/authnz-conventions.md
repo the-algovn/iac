@@ -24,6 +24,10 @@ Never invent per-app auth: no local users, no password fields, no API-issued ses
    server → Web + client secret, or service user for M2M.
    ⚠️ EVERY app/service-user whose tokens must pass the Kong gate needs
    **Auth/Access Token Type: JWT** (Zitadel's default is opaque Bearer → edge 401).
+   ⚠️ Roles claim is app-gated too: enable accessTokenRoleAssertion (and
+   idTokenRoleAssertion) on the app — project-level "assert roles" alone is not enough.
+   Avoid the device-code grant for now: it falls back to the legacy v1 login (separate
+   sessions, different IdP callback) until Zitadel's login v2 supports it.
 3. Customer orgs get the project via Project Grants; users get role Authorizations. GitHub IdP is configured-pending (Google live) — see zitadel.md.
 
 ## OpenFGA

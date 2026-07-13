@@ -12,3 +12,4 @@ Cluster live. Acceptance: docs/runbooks/verify.md — all green on 2026-07-12 (T
 Kong gateway + gRPC conventions live — 2026-07-12, spec docs/superpowers/specs/2026-07-12-kong-gateway-grpc-conventions-design.md.
 Shared Postgres live (CloudNativePG 1.30.0, PG 18) — 2026-07-12, runbook docs/runbooks/postgres.md.
 Remote access (ssh + kubectl) via cloudflared host tunnels — 2026-07-13, see docs/runbooks/remote-access.md; Access gate pending.
+AuthN/Z foundation live (Zitadel chart 9.34.0 @ id.algovn.com + OpenFGA 0.3.10, Kong jwt edge gate) — 2026-07-13, spec docs/superpowers/specs/2026-07-13-authnz-foundation-design.md, conventions docs/authnz-conventions.md. pg backups deliberately descoped (postgres.md warning stands); barman-cloud plugin installed but unconfigured.

@@ -19,3 +19,10 @@ Run on the Pi with `export KUBECONFIG=$HOME/.kube/config`.
     `cloudflared-algovn-w1` (w1) → active; after Access apps exist, each of
     ssh-pi/ssh-w1/k8s.algovn.com must curl → 302.
 Note: the Pi kubeconfig's default namespace is `argocd` — ad-hoc `kubectl run` pods land there unless you pass `-n`.
+
+## AuthN/Z (spec 2026-07-13)
+- `curl -s https://id.algovn.com/.well-known/openid-configuration | jq -r .issuer` → `https://id.algovn.com`
+- Login page renders: https://id.algovn.com/ui/v2/login (passkey/social only — no password field)
+- Edge gate: any `konghq.com/plugins: jwt-auth` route → 401 bare / 200 with fresh JWT-type token
+- OpenFGA: in-cluster grpcurl health check == SERVING (needs bearer for reflection; see authnz-conventions.md)
+- Grafana dashboard "AuthN/Z" renders with live data; `up{namespace=~"zitadel|openfga"}` all 1
