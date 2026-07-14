@@ -19,23 +19,27 @@ spec:
           livenessProbe:
             httpGet: { path: /ready, port: 2000 }
             initialDelaySeconds: 10
-          # 2026-07-14 re-test: with 3 replicas @ 1536Mi, the ramp hit a NEW
-          # wall at ~8,235 conns via HTTP 503 with zero cloudflared/Kong/acp
-          # log lines for the refused conns (peak mem only 339Mi/pod, 22% of
-          # limit) -- memory was never the constraint here. Logs confirm each
-          # pod registers exactly 4 QUIC connections to the edge (connIndex
-          # 0-3, "Registered tunnel connection"); this cloudflared build has
-          # no --ha-connections flag to raise per-pod, so 3 pods x 4 = 12
-          # edge connections is the actual cap, and ~8,235 ~= 8 active
-          # connections x ~1024 streams (quic-go's per-connection stream
-          # limit), i.e. load was concentrated on ~8 of the 12 connections.
-          # The lever is more edge connections, not more memory: replicas
-          # 3 -> 6 doubles registered QUIC connections (12 -> 24). Limit
-          # dropped 1536Mi -> 768Mi since observed peak was ~340Mi/pod
-          # (22% of the old limit) -- 768Mi still gives >2x headroom over
-          # anything measured. Total limit budget (6x768=4608Mi) is the same
-          # as before (3x1536=4608Mi); this redistributes the same ceiling
-          # across more, smaller pods rather than shrinking it.
+          # 2026-07-14 sizing, and an honest note about what it does NOT fix.
+          #
+          # memory 1536Mi -> 768Mi: WELL EVIDENCED. The original 512Mi OOM was
+          # real, but 1536Mi was oversized for a hypothesis that turned out to
+          # be wrong. Measured peaks across two ramps: 251Mi and 339Mi/pod, 0
+          # restarts. 768Mi keeps >2x headroom; total budget (6x768) equals the
+          # old 3x1536.
+          #
+          # replicas 3 -> 6: DOES NOT RAISE SSE CAPACITY. Each pod registers 4
+          # QUIC connections to the edge (connIndex 0-3 in the logs) and this
+          # build has no --ha-connections flag, so replicas are the only lever
+          # on edge connection count. We doubled it (12 -> 24) and re-ramped:
+          # the 503 wall did NOT move up -- the measured ceiling went 8,235 ->
+          # 5,536, and 3 of the 6 pods never received a single stream (idle at
+          # 18Mi). The wall is at the Cloudflare edge, is insensitive to our
+          # replica count, and varies run to run; a single-source-IP test cannot
+          # tell a global tunnel ceiling from a per-IP edge cap. 6 replicas is
+          # retained only as cheap redundancy (~18Mi/idle pod) and on the
+          # UNPROVEN hypothesis that more edge connections help spread many
+          # distinct real client IPs. Do not cite it as headroom.
+          # Evidence: docs/load-results-the-button.md, "Re-test 2".
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { memory: 768Mi }

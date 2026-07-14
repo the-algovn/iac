@@ -553,3 +553,161 @@ stream limit. Either way, re-measure; do not assume.
   under real load.
 - **Real 1s tick-latency** — still not measurable (channel idle; heartbeat
   gap used as a proxy).
+
+## Re-test 2: tunnel stream capacity
+
+Date: 2026-07-14. Purpose: test the hypothesis that the ~8,235 wall from the
+previous section was per-QUIC-connection stream exhaustion, and that adding
+cloudflared replicas (each registering 4 QUIC connections to the edge) would
+raise it. **The hypothesis was falsified.** The run was stopped early by the
+operator because `api.algovn.com/healthz` was 503ing under the load; the data
+below is what was measured before the stop, and it is decisive on its own.
+
+### What was changed
+
+`platform/cloudflared/deployment.yaml`:
+
+| | before | after |
+|---|---|---|
+| replicas | 3 | **6** |
+| memory limit | 1536Mi | **768Mi** |
+| registered edge QUIC connections | 3 x 4 = 12 | **6 x 4 = 24** |
+
+The 4-connections-per-pod figure is confirmed, not assumed: every pod logs
+exactly `Registered tunnel connection connIndex=0..3` at startup. This
+cloudflared build (2026.7.1) exposes **no `--ha-connections` flag**, so
+replica count is the only lever we have over edge connection count.
+
+The memory limit was *lowered* because the previous re-test proved memory was
+never the constraint (peak 339Mi against a 1536Mi limit). 6 x 768Mi is the
+same total memory budget as 3 x 1536Mi.
+
+### Result: the ceiling did NOT move up. It moved DOWN.
+
+Stages 5,000 -> 8,000 -> 10,000, 60s holds, connect pacing 15/s, single LAN
+source IP:
+
+| Stage target | Reached | Connect fails | 5xx | 429 |
+|---|---|---|---|---|
+| 5000 | 5000/5000, frame-gap p50/p95 25001/25078ms | 0 | 0 | 0 |
+| 8000 | **5,536 — hard wall** | 2,443+ | 2,443+ (503) | 0 |
+| 10000 | not attempted (aborted at stage 8000) | — | — | — |
+
+- **Max concurrent SSE held: 5,536** (client-observed). The `acp_sse_clients`
+  gauge read ~2,767 per acp pod x 2 pods = **~5,534**, agreeing to within 2.
+- **Doubling the tunnel's registered edge connections (12 -> 24) did not raise
+  the ceiling — the measured number fell from 8,235 to 5,536.**
+- The wall was absolute, not gradual: `open` pinned at *exactly* 5,536 and
+  stayed there for 3+ minutes while **every single new connection got a 503**
+  (100% failure on ~2,400 attempts, zero recovery). Not a soft degradation.
+- **429 = 0** throughout — Kong's per-IP rate limit was never involved.
+- 5,000 held perfectly clean, as in every previous run.
+
+### Why more replicas bought nothing: half the pods were never used
+
+Peak cloudflared memory per pod, 6 replicas (memory is a proxy for streams
+carried, ~80KB/stream):
+
+| pod | peak | carried load? |
+|---|---|---|
+| mfb79 | **251Mi** | yes |
+| 9lfsn | **137Mi** | yes |
+| dm4bj | 61Mi | a little |
+| zjvdw | 18Mi | **no — idle baseline** |
+| kckzp | 18Mi | **no — idle baseline** |
+| 2wrtl | 18Mi | **no — idle baseline** |
+
+**Three of the six pods never received a single stream.** The Cloudflare edge
+routed this client's connections onto a subset of the 24 registered
+connections and left the rest idle — exactly the same pattern as the 3-replica
+run (339Mi / 285Mi / 22Mi: one of three pods barely used). Registering more
+edge connections does not make the edge *use* them for a given client.
+
+This also means the replicas **cannot have caused** the drop from 8,235 to
+5,536 — the added pods were sitting idle. The two numbers are run-to-run
+*variance in the same edge-side wall*, not a capacity regression.
+
+### The mechanism, stated only as far as the evidence supports
+
+What is established:
+
+1. The refusals happen **upstream of our origin**. HTTP 503 status codes (the
+   edge answered), no corresponding entries in Kong or api-control-plane
+   access logs, and both were idle at the time (acp peak RSS **110Mi of 1Gi**;
+   cloudflared peak **251Mi of 768Mi**, 0 restarts, 0 OOMKills). Nothing we
+   run was under stress when the wall hit.
+2. It is **not** a memory limit (33% utilization at the wall).
+3. It is **not** Kong's rate limit (429 = 0) and **not** `SSE_MAX_CONNS=15000`.
+4. It is **not** a simple `registered_connections x 1024 streams` cap: doubling
+   registered connections did not raise it, and the previous section's neat
+   `8 x 1024 = 8,192 ~= 8,235` arithmetic must now be treated as **coincidence**,
+   not mechanism. It did not predict this run.
+5. The binding constraint is at the **Cloudflare edge**, is **not a function of
+   any configuration we control**, and **varies between runs** (8,235 then
+   5,536 under identical conditions apart from replica count).
+
+The most plausible remaining explanation — consistent with all of the above but
+**not proven** — is a **per-source-IP concurrency cap at the Cloudflare edge**.
+It would produce exactly this signature: a hard wall, indifferent to our
+replica count, with a value that shifts run to run depending on which edge
+colos/servers a given client's connections land on.
+
+### The number is a FLOOR, not a proven ceiling
+
+**A single-source-IP load test cannot distinguish a global tunnel ceiling from
+a per-source-IP edge cap.** All 5,536 (and previously 8,235) connections came
+from one machine on one IP. If the wall is per-IP, then real users on thousands
+of distinct IPs would never collectively hit it, and the system's true capacity
+is **unknown and probably substantially higher** than any number in this
+document.
+
+So the honest statement of capacity is:
+
+- **Proven to hold, repeatedly and cleanly: 5,000 concurrent SSE connections**
+  (zero failures, zero 5xx, flat frame-gaps, every run).
+- **From a single source IP, a hard 503 wall appears somewhere between ~5.5k
+  and ~8.2k**, varying by run, caused by something at the Cloudflare edge that
+  we do not control and cannot raise by scaling.
+- **10,000 concurrent has never been reached and is not demonstrated.**
+- Whether 10,000 is reachable from many distinct IPs is **untested**. It cannot
+  be settled from one machine. A genuinely distributed, multi-IP origin test is
+  the *only* way to answer it.
+
+### Operationally critical: at saturation, the whole API host degrades
+
+`api.algovn.com/healthz` — an endpoint with nothing to do with SSE — returned
+**503 in 2 of 39 health polls**, both inside the saturation window
+(17:08:36Z and 17:09:14Z, while `open` was pinned at 5,536). The apex,
+`/ui-showcase` and `/the-button/` stayed **200 in all 39 polls** (they are
+static and Cloudflare-served, so they never touch the tunnel).
+
+**Tunnel saturation is not confined to the `/events` path — it takes down every
+route on `api.algovn.com`, including health checks and the click path.** A
+large enough SSE crowd degrades the API for everyone, including users who are
+not watching the counter. This is the single most important operational finding
+of the re-test, and it is why the run was stopped. The site recovered to 200
+immediately once load stopped, with zero pod restarts anywhere.
+
+### Configuration left in place, and why
+
+Left at **6 replicas x 768Mi**:
+
+- **768Mi is well-evidenced.** Observed peaks: 251Mi (this run), 339Mi (3-replica
+  run at a higher connection count). >2x headroom over anything measured, and
+  the total budget (6 x 768 = 4608Mi) is unchanged from 3 x 1536Mi.
+- **6 replicas is NOT justified as a capacity fix — it demonstrably did not
+  raise the single-IP ceiling, and 3 of the 6 pods sat idle.** It is retained
+  only because it is nearly free (an idle pod costs ~18Mi) and because *for the
+  multi-IP case we cannot test*, more registered edge connections plausibly give
+  the edge more paths to spread distinct clients across. That is a hypothesis,
+  not a result. It should not be cited as proven headroom.
+
+### Unverified / left open
+
+- **The actual capacity of this system is still unknown**, because every test to
+  date has been single-origin. This is now the single biggest gap.
+- **The per-IP-edge-cap explanation is inference**, not a confirmed mechanism.
+  It fits all five established facts above; it has not been proven.
+- **Authenticated click-soak** — still not run.
+- **Real 1s tick-latency** — still not measurable (channel idle; heartbeat gap
+  used as a proxy).

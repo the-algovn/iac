@@ -48,34 +48,47 @@ REDIS_PASS=$(kubectl --context algovn-remote -n redis get secret redis-auth -o j
    kubectl --context algovn-remote -n api-control-plane scale deploy/api-control-plane --replicas=3
    kubectl --context algovn-remote -n the-button scale deploy/the-button-service --replicas=3
    ```
-   cloudflared is the proven SSE wall (see Known limits) — scaling it first buys the
-   most headroom per replica. Restarting/scaling `the-button-service` does not drop
+   ⚠️ **Scaling cloudflared does NOT raise the SSE ceiling** (measured — see Known
+   limits: 3→6 replicas left 3 pods completely idle and the wall did not move). The 503
+   wall is at the Cloudflare edge, not in a pod we can scale. Scale cloudflared only for
+   redundancy or a genuine memory alert; to relieve an SSE ceiling use knob 2 (lower
+   `SSE_MAX_CONNS`) instead. Restarting/scaling `the-button-service` does not drop
    SSE (that path is entirely acp+cloudflared); tick leadership fails over to another
    replica in ~12ms (measured).
 
 ## What each alert means
 
 ### Alert: cloudflared memory & restarts
-- `ButtonCloudflaredMemoryHigh` — working set > 75% of the 1536Mi limit for 10m.
-- `ButtonCloudflaredOOMRestart` — any cloudflared restart in the last 10m. This is the
-  proven SSE capacity wall (2026-07-14 ramp: 512Mi limit OOMKilled a pod at ~7.4k QUIC
-  streams cluster-wide, ~140KB/stream); fixed to 3×1536Mi, but the wall is memory, not
-  CPU or Kong's connection budget.
+- `ButtonCloudflaredMemoryHigh` — working set > 75% of the 768Mi limit for 10m.
+- `ButtonCloudflaredOOMRestart` — any cloudflared restart in the last 10m.
+
+⚠️ **These are leak/regression safety nets, NOT the SSE capacity wall.** The original
+512Mi OOM (2026-07-14, ~7.4k streams) was real and is fixed (now 6×768Mi; measured peaks
+251–339Mi, i.e. ~33–44% of limit, 0 restarts across two later ramps). The SSE ceiling
+that remains is a **503 wall at the Cloudflare edge** which appears while cloudflared
+memory is still low — see Known limits. A memory alert here at *normal* connection counts
+therefore means a **leak**, not saturation.
 
 First three checks:
 1. `kubectl --context algovn-remote -n cloudflared get pods` — how many replicas, any
    `OOMKilled`/restart count.
 2. Current SSE connection count: `sum(acp_sse_clients)` (see next alert) — is a real
-   ramp in progress, or a leak?
-3. Apply knob 2 (lower `SSE_MAX_CONNS`) or knob 3 (scale cloudflared) above; don't wait
-   for the second replica to also OOM.
+   ramp in progress, or a leak? High memory with *low* connection count = leak.
+3. Apply knob 2 (lower `SSE_MAX_CONNS`). **Do not expect knob 3 (scaling cloudflared) to
+   raise the SSE ceiling — it is measured not to.** Scale only to relieve genuine
+   per-pod memory pressure.
 
 ### Alert: acp memory & SSE clients
 - `ButtonAcpMemoryHigh` — api-control-plane RSS > 75% of its 1Gi limit for 10m.
 - `ButtonSSEClientsNearCap` — `sum(acp_sse_clients) > 12000` (80% of `SSE_MAX_CONNS=15000`)
-  for 5m. Measured: RSS peaked ~125Mi of 1Gi at ~7.4k connections in the load test — acp
-  was never close to distressed; cloudflared broke first. A memory alert here without a
-  matching connection count is more likely a leak or a different workload.
+  for 5m. Measured: acp RSS peaked ~110–125Mi of 1Gi at 5.5k–7.4k connections — acp was
+  never close to distressed in any run. A memory alert here without a matching connection
+  count is more likely a leak or a different workload.
+
+⚠️ **`SSE_MAX_CONNS=15000` is not a capacity claim.** The edge 503s new connections
+somewhere between ~5.5k and ~8.2k (single-IP measurement), so this cap has never actually
+been reached and this alert has never fired for real. Expect the *edge* to refuse
+connections long before acp's own cap does.
 
 First three checks:
 1. `sum(acp_sse_clients)` and `max(process_resident_memory_bytes{namespace="api-control-plane"})`
@@ -176,14 +189,32 @@ dump/restore to a larger volume before critical fires, not after.
 
 ## Known limits — stated honestly
 
-- **10,000 concurrent users was the target; the measured ceiling is lower.** The
-  2026-07-14 SSE ramp held cleanly to 5,000 connections with zero failures, then broke
-  at ~7,300-7,500 when a cloudflared pod (512Mi limit at the time) was OOMKilled.
-  **cloudflared memory is the wall**, not Kong (0 restarts throughout) and not acp
-  (RSS peaked ~125Mi of 1Gi, `SSE_MAX_CONNS=15000` never approached). cloudflared is
-  now sized at 3×1536Mi; a re-run to confirm 10k holds at the new size has not been
-  reported back into `iac/docs/load-results-the-button.md` as of this runbook — check
-  that file for a "Load test results" addendum before assuming 10k is proven.
+- **10,000 concurrent users is the target. It has never been reached. 5,000 is the
+  only number proven to hold.** Three ramps (2026-07-14) tell a consistent story:
+  5,000 concurrent SSE connections hold cleanly every time (0 failures, 0 5xx, flat
+  frame-gaps). Above that, a hard **HTTP 503 wall** appears somewhere between ~5.5k
+  and ~8.2k, varying run to run.
+- **The wall is at the Cloudflare edge, and we cannot scale past it.** The original
+  512Mi cloudflared OOM was real and is fixed (now 6×768Mi; peak observed 251-339Mi,
+  0 restarts). But memory was never the ceiling: after the fix the ramp still hit 503s
+  with cloudflared at 33% of its limit, acp at 110Mi of 1Gi, Kong idle, and **429=0**.
+  Doubling the tunnel's registered edge QUIC connections (3→6 replicas, 12→24 conns)
+  **did not raise the ceiling — the measured number went 8,235 → 5,536, and 3 of the 6
+  pods never received a single stream.** Scaling cloudflared does not buy SSE capacity.
+- **⚠️ The measured number is a FLOOR, not a proven ceiling.** Every test to date ran
+  from a **single source IP**, which cannot distinguish a global tunnel ceiling from a
+  per-source-IP edge cap. If it is per-IP (the best-fitting explanation), real users on
+  thousands of distinct IPs would never collectively hit it and true capacity is likely
+  much higher — but that is **untested**. Do not quote 5.5k/8.2k as the system's
+  capacity; quote 5,000 as proven and say the rest is unknown. Full evidence:
+  `iac/docs/load-results-the-button.md` ("Re-test 2: tunnel stream capacity").
+- **⚠️ At tunnel saturation the WHOLE API host degrades, not just SSE.**
+  `api.algovn.com/healthz` returned 503 during the saturation window even though it has
+  nothing to do with SSE. A large enough SSE crowd 503s the click path and health checks
+  too. The static apex / `/ui-showcase` / `/the-button/` stay 200 (Cloudflare-served, they
+  never touch the tunnel). If `healthz` is 503ing, check `sum(acp_sse_clients)` before
+  assuming acp is broken — it is probably the tunnel, and the fix is knob 2 (lower
+  `SSE_MAX_CONNS`), not scaling.
 - **The authenticated click-soak (real gRPC `SubmitClicks`, genuine PoW, forged
   bearers) was not run** — deferred pending a credential-handling decision, per
   `iac/docs/load-results-the-button.md`. The write-path evidence backing the 750

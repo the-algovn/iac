@@ -7,16 +7,21 @@ spec:
   groups:
     - name: the-button-edge
       rules:
-        # cloudflared memory is the proven SSE capacity wall (2026-07-14 ramp:
-        # OOMKilled a pod at 512Mi/~7.4k QUIC streams cluster-wide, ~140KB/stream —
-        # NOT Kong, NOT acp). Fixed to 3 replicas x 1536Mi limit; these two alerts
-        # watch the same wall at the new size. Runbook: the-button.md.
+        # cloudflared memory OOM (2026-07-14, 512Mi limit) was fixed by resizing
+        # to 3x1536Mi, which then exposed a DIFFERENT wall (~8,235 conns, HTTP 503
+        # upstream of Kong/acp, cloudflared mem only 22% of limit) traced to the
+        # edge/tunnel's registered QUIC connection count (4 per pod, no
+        # --ha-connections flag to raise per-pod). Resized again to 6x768Mi
+        # (doubles registered connections 12->24; same total mem budget as
+        # 3x1536Mi). This memory alert stays as a safety net for a genuine leak,
+        # but is NOT the mechanism for the SSE capacity wall — see Known limits
+        # in the-button.md for the current ceiling. Runbook: the-button.md.
         - alert: ButtonCloudflaredMemoryHigh
-          expr: max(container_memory_working_set_bytes{namespace="cloudflared", container!=""}) > 1152 * 1024 * 1024
+          expr: max(container_memory_working_set_bytes{namespace="cloudflared", container!=""}) > 576 * 1024 * 1024
           for: 10m
           labels: { severity: warning }
           annotations:
-            summary: 'cloudflared working set {{ $value | humanize1024 }}B > 75% of 1536Mi limit — approaching the proven SSE OOM wall'
+            summary: 'cloudflared working set {{ $value | humanize1024 }}B > 75% of 768Mi limit'
             runbook: 'iac/docs/runbooks/the-button.md#alert-cloudflared-memory--restarts'
         - alert: ButtonCloudflaredOOMRestart
           expr: sum(increase(kube_pod_container_status_restarts_total{namespace="cloudflared"}[10m])) > 0
