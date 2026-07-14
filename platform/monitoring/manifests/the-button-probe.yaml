@@ -1,0 +1,21 @@
+# External edge-health signal for the-button (see the-button-rules.yaml,
+# alert ButtonEdgeHealthzFailing). Probes the real public endpoint through
+# Cloudflare + the tunnel, exactly the path that 503s the whole api.algovn.com
+# host when the SSE edge saturates (load-results-the-button.md) — the
+# in-cluster metrics (acp RSS, cloudflared RSS) stayed healthy through that
+# exact failure, so this is the only signal that would have caught it.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: the-button-edge-healthz
+  namespace: monitoring
+spec:
+  jobName: the-button-edge-healthz
+  module: http_2xx
+  interval: 30s
+  vmProberSpec:
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      targets:
+        - https://api.algovn.com/healthz

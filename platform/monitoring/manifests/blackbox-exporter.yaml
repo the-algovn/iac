@@ -1,0 +1,58 @@
+# Minimal blackbox-exporter deployment so the-button-rules.yaml's edge-health
+# VMProbe has something to actually do the probing. This is the only thing
+# that can catch the reproduced edge-saturation failure (the Cloudflare
+# tunnel 503ing api.algovn.com/healthz — see load-results-the-button.md):
+# every other alert in this file watches an internal signal that stayed
+# healthy throughout that failure (acp RSS, cloudflared RSS, Kong, PG).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-exporter-config
+  namespace: monitoring
+data:
+  config.yml: |
+    modules:
+      http_2xx:
+        prober: http
+        timeout: 5s
+        http:
+          preferred_ip_protocol: "ip4"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: blackbox-exporter }
+  template:
+    metadata:
+      labels: { app: blackbox-exporter }
+    spec:
+      containers:
+        - name: blackbox-exporter
+          image: docker.io/prom/blackbox-exporter:v0.25.0
+          args: ["--config.file=/config/config.yml"]
+          ports:
+            - { containerPort: 9115, name: http }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+      volumes:
+        - name: config
+          configMap: { name: blackbox-exporter-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels: { app: blackbox-exporter }
+spec:
+  selector: { app: blackbox-exporter }
+  ports:
+    - { port: 9115, targetPort: 9115, name: http }
