@@ -9,6 +9,7 @@ resources:
   - pg-the-button-sealed.yaml
   - deployment.yaml
   - poddisruptionbudget.yaml
+  - networkpolicy.yaml
   - service.yaml
   - vmservicescrape.yaml
 images:
