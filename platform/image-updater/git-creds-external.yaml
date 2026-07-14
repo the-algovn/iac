@@ -1,0 +1,22 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: git-creds
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: git-creds
+    creationPolicy: Owner
+  data:
+    - secretKey: username
+      remoteRef:
+        key: algovn/argocd/git-creds
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: algovn/argocd/git-creds
+        property: password

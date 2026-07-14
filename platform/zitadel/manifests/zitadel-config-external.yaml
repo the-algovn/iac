@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: zitadel-config
+  namespace: zitadel
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: zitadel-config
+    creationPolicy: Owner
+  data:
+    - secretKey: config-yaml
+      remoteRef:
+        key: algovn/zitadel/zitadel-config
+        property: config-yaml

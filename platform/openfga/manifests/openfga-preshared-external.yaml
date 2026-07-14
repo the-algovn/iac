@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: openfga-preshared
+  namespace: openfga
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: openfga-preshared
+    creationPolicy: Owner
+  data:
+    - secretKey: keys
+      remoteRef:
+        key: algovn/openfga/openfga-preshared
+        property: keys

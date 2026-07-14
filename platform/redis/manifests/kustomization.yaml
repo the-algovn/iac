@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - redis-auth-sealed.yaml
+  - redis-auth-external.yaml
   - statefulset.yaml
   - service.yaml
   - vmservicescrape.yaml

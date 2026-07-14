@@ -1,0 +1,24 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-zitadel
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: pg-role-zitadel
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - secretKey: username
+      remoteRef:
+        key: algovn/postgres/pg-role-zitadel
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: algovn/postgres/pg-role-zitadel
+        property: password

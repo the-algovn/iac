@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: redis-creds
+  namespace: the-button
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: redis-creds
+    creationPolicy: Owner
+  data:
+    - secretKey: url
+      remoteRef:
+        key: algovn/the-button/redis-creds
+        property: url

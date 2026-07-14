@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: openfga-datastore
+  namespace: openfga
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: openfga-datastore
+    creationPolicy: Owner
+  data:
+    - secretKey: uri
+      remoteRef:
+        key: algovn/openfga/openfga-datastore
+        property: uri

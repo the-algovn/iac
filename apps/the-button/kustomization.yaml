@@ -2,11 +2,11 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - registry-creds-sealed.yaml
-  - amqp-creds-sealed.yaml
-  - redis-creds-sealed.yaml
-  - pow-secret-sealed.yaml
-  - pg-the-button-sealed.yaml
+  - registry-creds-external.yaml
+  - amqp-creds-external.yaml
+  - redis-creds-external.yaml
+  - pow-secret-external.yaml
+  - pg-the-button-external.yaml
   - deployment.yaml
   - poddisruptionbudget.yaml
   - networkpolicy.yaml

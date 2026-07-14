@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-oauth
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: grafana-oauth
+    creationPolicy: Owner
+  data:
+    - secretKey: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+      remoteRef:
+        key: algovn/monitoring/grafana-oauth
+        property: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET

@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: zitadel-masterkey
+  namespace: zitadel
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: zitadel-masterkey
+    creationPolicy: Owner
+  data:
+    - secretKey: masterkey
+      remoteRef:
+        key: algovn/zitadel/zitadel-masterkey
+        property: masterkey

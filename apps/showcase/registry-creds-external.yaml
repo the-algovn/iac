@@ -1,0 +1,20 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: registry-creds
+  namespace: showcase
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: registry-creds
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/dockerconfigjson
+  data:
+    - secretKey: .dockerconfigjson
+      remoteRef:
+        key: algovn/shared/ghcr-pull
+        property: dockerconfigjson
