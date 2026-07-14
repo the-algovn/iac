@@ -4,13 +4,14 @@ metadata:
   name: cloudflared
   namespace: cloudflared
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels: { app: cloudflared }
   template:
     metadata:
       labels: { app: cloudflared }
     spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: cloudflared
           image: docker.io/cloudflare/cloudflared:2026.7.1
@@ -19,8 +20,8 @@ spec:
             httpGet: { path: /ready, port: 2000 }
             initialDelaySeconds: 10
           resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits: { memory: 128Mi }
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
           volumeMounts:
             - { name: config, mountPath: /etc/cloudflared/config, readOnly: true }
             - { name: creds, mountPath: /etc/cloudflared/creds, readOnly: true }

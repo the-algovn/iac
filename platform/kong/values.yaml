@@ -24,6 +24,8 @@ gateway:
     real_ip_header: CF-Connecting-IP
     real_ip_recursive: "on"
     trusted_ips: 10.42.0.0/16
+    nginx_events_worker_connections: "32768"
+    nginx_main_worker_rlimit_nofile: "65536"
   resources:
     requests: { cpu: 150m, memory: 256Mi }
-    limits: { memory: 1Gi }
+    limits: { memory: 2Gi }
