@@ -3,8 +3,9 @@
 Live global click counter; PoW-gated. Service ns `the-button` (`the-button-service`,
 2 replicas, gRPC :9090 + metrics :9091), SPA ns `the-button-web`, routed via
 api-control-plane registration `/the-button` and SSE channel `the-button.counter`.
-Spec: the-button-service repo `docs/superpowers/specs/2026-07-14-the-button-design.md`.
-Load/calibration evidence: `iac/docs/load-results-the-button.md`. Data: Redis ns `redis`
+Design docs: `specs/products/the-button.md` (product) and `specs/ARCHITECTURE.md`
+(platform); this runbook is self-contained and doesn't require either for on-call
+use. Load/calibration evidence: `iac/docs/load-results-the-button.md`. Data: Redis ns `redis`
 (hot control state — `pow:L`, `pow:min_interval`, `counter:global`), Postgres db
 `the_button` in the shared CNPG cluster (durable truth). Alerts: VMRule
 `the-button-alerts` (`platform/monitoring/manifests/the-button-rules.yaml`).
@@ -32,14 +33,20 @@ REDIS_PASS=$(kubectl --context algovn-remote -n redis get secret redis-auth -o j
    this as a nudge to confirm the controller's own ceiling, not a durable latch. For a
    durable clamp use knobs 2/3 below instead.
 
-2. **Lower the SSE cap (edge relief, immediate, durable).** Fewer held connections
-   means less cloudflared memory and less acp memory:
+2. **Lower the SSE cap (edge relief, durable, but NOT connection-preserving).** Fewer
+   held connections means less cloudflared memory and less acp memory:
    ```
    kubectl --context algovn-remote -n api-control-plane set env deploy/api-control-plane SSE_MAX_CONNS=8000
    ```
-   New connections above the cap get a 503 and the SPA reconnects with its own
-   full-jitter exponential backoff (cap starts 5s, doubles per failure, ceilinged at
-   60s) — existing connections keep serving. Revert by re-setting to `15000`.
+   ⚠️ `kubectl set env` patches the pod template, which triggers a RollingUpdate
+   (`maxSurge:1/maxUnavailable:0`, 2 replicas) — **this drops every existing SSE
+   connection**, not just new ones above the cap, as each pod is replaced (measured
+   ~23-24s rollout wall time). Clients reconnect with the SPA's own full-jitter
+   exponential backoff (cap starts 5s, doubles per failure, ceilinged at 60s) — full
+   recovery measured at ~127s in a single-IP test (see Known limits), likely faster
+   with real, distributed clients. Only once the rollout completes do new connections
+   above the (now-lower) cap start getting a 503. Revert by re-setting to `15000`
+   (same rolling-restart caveat applies).
 
 3. **Scale cloudflared / acp / the-button-service (throughput + memory relief).**
    No HPA on any long-lived-connection path — scale by hand:
@@ -106,7 +113,7 @@ First three checks:
   `counter_outbox`) elevated above 100 for 10m; the sweeper runs every 30s and applies
   up to 500 rows/pass, so a healthy sweeper should never sit above that for long.
 
-**Do NOT hand-edit Redis.** Both metrics are observation-only by design (spec §8) —
+**Do NOT hand-edit Redis.** Both metrics are observation-only by design —
 nothing in the service auto-corrects them, because a diff between Postgres and Redis
 can't tell a lost increment from one merely in flight. The counter's exactly-once
 design: every batch commits once in Postgres and writes a `counter_outbox` row in the
@@ -189,6 +196,16 @@ dump/restore to a larger volume before critical fires, not after.
 
 ## Known limits — stated honestly
 
+- **Single-node reality: node loss takes the whole product (and login) down, not
+  just a pod.** Both `the-button-service` replicas AND the Postgres primary (`pg-1`)
+  run on `algovn-w1` — the cluster's only schedulable amd64 worker (the Pi
+  control-plane node can't run amd64 images). The "2 replicas / ~12ms tick-leader
+  failover" story below only covers a pod restart or crash on that same node;
+  losing `algovn-w1` itself takes out the-button-service, Postgres (and therefore
+  Zitadel/login, which shares the CNPG cluster), with no automatic failover to
+  another node because there isn't one yet. The topologySpreadConstraints added to
+  `apps/the-button/deployment.yaml` is a preference that only takes effect once a
+  second amd64 worker joins.
 - **10,000 concurrent users is the target. It has never been reached. 5,000 is the
   only number proven to hold.** Three ramps (2026-07-14) tell a consistent story:
   5,000 concurrent SSE connections hold cleanly every time (0 failures, 0 5xx, flat
