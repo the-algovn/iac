@@ -5,7 +5,7 @@ is backup-less (see postgres.md NO BACKUPS warning; risk re-accepted 2026-07-13)
 runbook is the only reproduction path.
 
 ## Bootstrap (once per instance)
-1. Login: admin / password-manager item `zitadel-admin-bootstrap` (forced change on first login).
+1. Login: admin / password in bao at `algovn/zitadel/bootstrap-admin` (forced change on first login).
    Login name format: `<username>@algovn.id.algovn.com` — the org-domain suffix is required;
    bare usernames don't resolve.
 2. Admin passkey: top-right avatar → Passkeys → add (Touch ID). Then ADD A SECOND one
@@ -42,13 +42,13 @@ runbook is the only reproduction path.
     flows may use the legacy v1 login. See "Login versions & device flows" below.
 11. Admin-tool SSO project: Projects → `platform-admin` (Assert Roles ON; roles
     admin/editor/viewer). Apps: `grafana` — Web, auth method CODE (client-secret basic), redirect
-    https://grafana.algovn.com/login/generic_oauth; client secret sealed as
-    monitoring/grafana-oauth (see grafana-sso spec). Grant admins the `admin` role.
+    https://grafana.algovn.com/login/generic_oauth; client secret stored in bao at
+    algovn/monitoring/grafana-oauth (see grafana-sso spec). Grant admins the `admin` role.
     Future admin tools (Argo CD) join this project. Two execution gotchas: quote OIDC client
     IDs as strings in Helm values (unquoted 18-digit ints get float64-mangled to 3.8e+17 →
     Errors.App.NotFound); the redirect URI and the role AUTHORIZATION grant must both exist
     before login works (missing grant ⇒ Grafana "IdP did not return a role attribute" with
-    strict mapping). Recreating the app issues a NEW client_id/secret — update the quoted client_id in platform/monitoring/values.yaml and reseal monitoring/grafana-oauth per secrets.md.
+    strict mapping). Recreating the app issues a NEW client_id/secret — update the quoted client_id in platform/monitoring/values.yaml and write the new secret to bao at algovn/monitoring/grafana-oauth per docs/runbooks/secrets.md.
     App `argocd` — Web, auth method PKCE (NO secret), Dev Mode ON (needed for the
     plain-http CLI loopback redirect), redirects
     https://argocd.algovn.com/auth/callback + http://localhost:8085/auth/callback.

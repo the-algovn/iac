@@ -8,10 +8,10 @@ Admin API is cluster-internal; Kong Manager disabled. Rate limiting: policy `loc
 ## Protect a route (key-auth + rate limit)
 1. KongPlugin (namespace of the app):
    `plugin: key-auth` — and/or `plugin: rate-limiting` with `config: {minute: N, policy: local}`.
-2. Consumer + key (key sealed for git!):
-   kubectl create secret generic <app>-apikey -n <ns> --from-literal=key=<KEY> --dry-run=client -o yaml \
-     | scripts/seal.sh > <dir>/<app>-apikey-sealed.yaml
-   Add label `konghq.com/credential: key-auth` under the SealedSecret `spec.template.metadata.labels`.
+2. Consumer + key (key lives in OpenBao, synced by ESO — see `docs/runbooks/secrets.md`):
+   Write the key to bao at `secret/algovn/<ns>/<app>-apikey` (field `key`), then add an
+   ExternalSecret manifest `<dir>/<app>-apikey-external.yaml` referencing ClusterSecretStore `bao`.
+   Add label `konghq.com/credential: key-auth` under the ExternalSecret `spec.target.template.metadata.labels`.
    KongConsumer with `credentials: [<app>-apikey]` (annotation `kubernetes.io/ingress.class: kong`).
 3. Bind on the Ingress: annotation `konghq.com/plugins: "<plugin-names>"`.
 4. Verify: curl without key → 401; with `apikey: <KEY>` header → 200.

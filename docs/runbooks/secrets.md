@@ -1,29 +1,72 @@
-# Secrets
-## Seal a new secret
-kubectl create secret generic NAME -n NS --from-literal=k=v --dry-run=client -o yaml | scripts/seal.sh > <dir>/name-sealed.yaml
-Plaintext staging: ~/.secrets/ (chmod 700), `shred -u` after. NEVER commit plaintext (gitleaks enforces;
-`.gitleaks.toml` allowlists only `*-sealed.yaml` — keep that naming convention).
-⚠️ Strip trailing newlines from token files before sealing (`tr -d "[:space:]"`) — cert-manager
-rejects Cloudflare tokens containing a newline, and `curl` verification won't catch it.
-## Backup sealing key (after install or key rotation)
-kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml > ~/.secrets/key.yaml
-→ password manager (secure note "algovn sealed-secrets key") → `shred -u ~/.secrets/key.yaml`
-## Restore sealing key (during bootstrap step 3)
-Save the password-manager note to ~/.secrets/key.yaml, then:
-kubectl create namespace sealed-secrets --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f ~/.secrets/key.yaml && shred -u ~/.secrets/key.yaml
-kubectl -n sealed-secrets delete pod -l app.kubernetes.io/name=sealed-secrets 2>/dev/null || true
-## Argo CD admin password rotation
-Do NOT use `argocd login` via port-forward (gRPC breaks the forward on this box).
-Use `~/rotate-argocd-pw.sh` on the Pi: bcrypts locally, patches argocd-secret,
-verifies via REST /api/v1/session. Source of the script: plan Task 5 §7 deviation notes.
-## Not sealed (password manager only)
-Argo CD admin pw, Grafana admin pw (sealed grafana-admin secret holds it, but keep a copy),
-uptime-kuma admin, Cloudflare account creds, zitadel-masterkey, zitadel-admin-bootstrap,
-zitadel-iam-admin-sa-pat, openfga-api-key.
-## Inventory of sealed secrets
-cert-manager/cloudflare-api-token · external-dns/cloudflare-api-token · cloudflared/tunnel-credentials ·
-monitoring/grafana-admin (alertmanager-config not sealed — Telegram alerting skipped 2026-07-12) ·
-monitoring/grafana-oauth (Zitadel client secret for Grafana SSO) ·
-postgres/pg-role-zitadel · postgres/pg-role-openfga · zitadel/zitadel-masterkey ·
-zitadel/zitadel-config · openfga/openfga-datastore · openfga/openfga-preshared
+# Secrets — OpenBao + External Secrets Operator
+
+Since 2026-07-15 secrets live in **OpenBao** (Vault-compatible, LXC 124 `bao` on the
+Proxmox host, `http://192.168.102.124:8200`) and reach the cluster via **External
+Secrets Operator** (Argo app `external-secrets`, wave -5). The repo holds only
+`*-external.yaml` ExternalSecret references — never secret material. The old
+SealedSecrets system is gone; encrypted blobs in git history are permanently
+undecryptable (key destroyed 2026-07-15).
+
+## Layout
+
+KV v2 mount `secret/`, everything under `secret/algovn/<namespace>/<name>`, one field
+per k8s Secret key (dots in key names become underscores in KV fields:
+`.dockerconfigjson` → `dockerconfigjson`, `credentials.json` → `credentials_json`).
+Shared entries (single source, many consumers — replaces the old double-seal pattern):
+
+- `shared/ghcr-pull` — GHCR pull `.dockerconfigjson` for all app namespaces + image-updater
+- `shared/cloudflare-dns` — API token for cert-manager + external-dns
+- `shared/amqp-events` — AMQP URL for every events publisher
+
+Non-cluster secrets also live here: `home/nas-smb` (Samba), `zitadel/bootstrap-admin`.
+
+## Add a new secret
+
+1. Write the value:
+   `ssh root@192.168.102.100`, then
+   `curl -X POST -H "X-Vault-Token: $(cat /root/.openbao/root.token)" http://192.168.102.124:8200/v1/secret/data/algovn/<ns>/<name> -d '{"data":{"<field>":"<value>"}}'`
+   (or use the UI at http://192.168.102.124:8200 with the root token).
+2. Add a `<name>-external.yaml` ExternalSecret next to the consumer's manifests
+   (copy any existing one; set `target.template.type` if the Secret needs a type)
+   and list it in the dir's `kustomization.yaml`.
+3. `scripts/validate.sh`, commit, push. ESO syncs within `refreshInterval` (1h);
+   force with: `kubectl -n <ns> annotate externalsecret <name> force-sync=$(date +%s) --overwrite`
+   — then REMOVE the annotation (`force-sync-`) or Argo reports drift.
+
+## Rotate a secret
+
+Update the KV entry (same command as above — KV v2 keeps prior versions), force-refresh
+the ExternalSecret(s), restart consumers if they read at boot.
+
+## Bootstrap (fresh cluster)
+
+ESO authenticates via AppRole. The ONLY manual secret step per rebuild:
+```
+ssh root@192.168.102.100 'cat /root/.openbao/eso.role_id'  > role-id
+ssh root@192.168.102.100 'cat /root/.openbao/eso.secret_id' > secret-id
+kubectl create namespace external-secrets --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n external-secrets create secret generic eso-bao-approle --from-file=role-id=role-id --from-file=secret-id=secret-id
+rm -P role-id secret-id
+```
+
+## OpenBao operations
+
+- **Unseal:** automatic at host boot — `openbao-unseal.service` on the PVE host reads
+  `/root/.openbao/unseal.key`. Manual: `systemctl start openbao-unseal.service` (host).
+- **Root of trust:** `/root/.openbao/init.json` (unseal key + root token) — copy lives
+  in the password manager ("algovn openbao init"). Host compromise = vault compromise
+  (accepted single-box tradeoff).
+- **Backups:** LXC 124 is in the weekly vzdump job. Additionally snapshot Raft before
+  risky changes: `pct exec 124 -- env BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=<root> bao operator raft snapshot save /tmp/bao.snap`.
+- **Disaster:** restore LXC from vzdump; worst case re-run the populate flow — every
+  value is regenerable or user-reissuable (see the OpenBao design doc in the archive).
+
+## Not in OpenBao (password manager only)
+
+Argo CD admin pw · Cloudflare account creds · GitHub PATs (source copies; composed
+values ARE in bao) · zitadel-iam-admin-sa-pat · openbao init.json (copy).
+
+## TLS note
+
+Bao listens plain HTTP on the LAN (single-host homelab). Issuing it a real cert via
+cert-manager is an open follow-up.

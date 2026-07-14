@@ -42,8 +42,9 @@ Never invent per-app auth: no local users, no password fields, no API-issued ses
 - Endpoints (cluster-internal ONLY): gRPC dns:///openfga-grpc.openfga.svc.cluster.local:9090
   (deadline 5s, round_robin — grpc-conventions.md applies), HTTP http://openfga.openfga.svc:8080.
 - Gotcha: OpenFGA's authn interceptor also gates gRPC REFLECTION — grpcurl/SDK tooling needs the bearer token even to resolve descriptors; only grpc.health.v1 is exempt. The container binds gRPC on 9090 natively (values grpc.addr) — headless Services cannot remap ports, so never rely on port/targetPort translation for any chart's native port.
-- Auth: preshared key. Seal a copy into your app's ns (postgres.md double-seal pattern;
-  rotation = reseal everywhere, source of truth in password manager `openfga-api-key`).
+- Auth: preshared key. Stored once in OpenBao; your app's ns references it via its own
+  ExternalSecret (no per-namespace copies; rotation = update the one bao entry —
+  see docs/runbooks/secrets.md).
 - One STORE per product, created at onboarding: use the HTTP API or fga CLI (see the e2e
   transcript in the authnz plan Task 12 for exact calls). Record the store id in app config.
 - The MODEL (.fga DSL) lives in the product repo; CI applies it; the app PINS the returned

@@ -178,7 +178,8 @@ dump/restore to a larger volume before critical fires, not after.
 
 ## Secret rotation
 
-- **PoW secret** (`POW_SECRET`, ns `the-button`, SealedSecret `pow-secret`): rotating
+- **PoW secret** (`POW_SECRET`, ns `the-button`, ExternalSecret `pow-secret`,
+  bao KV path `secret/algovn/the-button/pow-secret` — see `docs/runbooks/secrets.md`): rotating
   it invalidates every in-flight challenge issued under the old key immediately.
   Set the new value as `POW_SECRET` and the OLD value as `POW_SECRET_PREV` in the same
   deploy — the service verifies against both keys for the rotation window (see
@@ -190,16 +191,18 @@ dump/restore to a larger volume before critical fires, not after.
   base64 passwords contain `/` and `+` which break URI parsing raw. See
   `docs/runbooks/postgres.md` (Add an app database, step 2) for the exact
   `python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))'`
-  one-liner and why the two sealed copies of a rotated password are deliberately
-  different encodings, not copies of each other. Resealing does not restart pods:
+  one-liner and why the two bao copies of a rotated password are deliberately
+  different encodings, not copies of each other. Write the new value to bao and let
+  the ExternalSecret sync it (procedure: `docs/runbooks/secrets.md`). Syncing the
+  secret does not restart pods:
   `kubectl --context algovn-remote -n the-button rollout restart deploy/the-button-service`.
 
 ## Known limits — stated honestly
 
 - **Single-node reality: node loss takes the whole product (and login) down, not
   just a pod.** Both `the-button-service` replicas AND the Postgres primary (`pg-1`)
-  run on `algovn-w1` — the cluster's only schedulable amd64 worker (the Pi
-  control-plane node can't run amd64 images). The "2 replicas / ~12ms tick-leader
+  run on `algovn-w1` — the cluster's only schedulable worker (the control-plane
+  VM `algovn` doesn't schedule these workloads). The "2 replicas / ~12ms tick-leader
   failover" story below only covers a pod restart or crash on that same node;
   losing `algovn-w1` itself takes out the-button-service, Postgres (and therefore
   Zitadel/login, which shares the CNPG cluster), with no automatic failover to

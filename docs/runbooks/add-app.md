@@ -6,4 +6,4 @@ Ingresses use `ingressClassName: kong`; protect routes via `konghq.com/plugins` 
 (see `docs/runbooks/kong.md`).
 DNS + tunnel + TLS are automatic from the Ingress host (external-dns routes every host to the
 algovn-k8s tunnel via --force-default-targets). `argocd app wait <name> --core`.
-App needs Postgres? docs/runbooks/postgres.md (declarative DB + role + sealed creds — no manual psql).
+App needs Postgres? docs/runbooks/postgres.md (declarative DB + role + creds via ExternalSecret from OpenBao — no manual psql; see docs/runbooks/secrets.md).

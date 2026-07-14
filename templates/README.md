@@ -2,7 +2,9 @@
 
 1. **App repo**: copy `github-actions-build-push.yaml` to `.github/workflows/build.yaml`.
    Ensure a `Dockerfile` exists. Push a `vX.Y.Z` tag → image at `ghcr.io/<org>/<repo>`.
-2. **Make the GHCR package public** (repo → Packages → settings) or seal a pull secret.
+2. **Make the GHCR package public** (repo → Packages → settings) or use the shared GHCR
+   pull secret (OpenBao KV `algovn/shared/ghcr-pull`) via an ExternalSecret in the app's
+   namespace — see `docs/runbooks/secrets.md`.
 3. **This repo**: create `apps/<name>/` (Deployment/Service/Ingress + kustomization —
    copy `apps/showcase/` as the model) and `clusters/algovn/apps/<name>.yaml`
    Application. Host `<name>.algovn.com` gets DNS + tunnel automatically.
@@ -11,7 +13,9 @@
    Add an `ImageUpdater` CR instead; model it on
    `platform/image-updater/showcase-updater.yaml`.
    One-time (first app only): give image-updater push access — create a GitHub
-   fine-grained PAT (this repo, Contents RW), seal it, add the sealed git-creds file to
+   fine-grained PAT (this repo, Contents RW), write it to OpenBao at
+   `secret/algovn/argocd/git-creds` (see `docs/runbooks/secrets.md`), add the
+   `git-creds-external.yaml` ExternalSecret to
    `platform/image-updater/kustomization.yaml`, and reference it from the ImageUpdater CR's
    `writeBackConfig.method: git:secret:argocd/git-creds` (see `platform/image-updater/showcase-updater.yaml` for the pattern).
 5. Merge. `argocd app wait <name> --core` → live at `https://<name>.algovn.com`.

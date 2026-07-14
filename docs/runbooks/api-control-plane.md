@@ -75,6 +75,7 @@ buffering annotation and `kubectl -n api-control-plane logs` for `rabbitmq conne
   `acp_requests_total{code="502"}` means the upstream is down or lacks reflection.
 - **RabbitMQ credential rotation** — the default user is only created on first boot; to
   rotate: `kubectl -n rabbitmq exec rabbitmq-0 -- rabbitmqctl change_password events '<new>'`,
-  then reseal `amqp-creds` in both the `api-control-plane` and `demo-service` namespaces
-  and update the password manager entry (`rabbitmq-events`).
+  then update the shared OpenBao entry `secret/algovn/shared/amqp-events` — both the
+  `api-control-plane` and `demo-service` ExternalSecrets reference it, so External
+  Secrets Operator propagates the new value (procedure: `docs/runbooks/secrets.md`).
 - **Metrics** — `acp_*` series in VictoriaMetrics; SSE gauge is `acp_sse_clients`.

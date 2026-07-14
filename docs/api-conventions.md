@@ -40,9 +40,9 @@ Review upstream addresses accordingly.
 Publish JSON to RabbitMQ topic exchange `events`, routing key = channel name;
 body = exactly what browsers receive. Browsers: `new EventSource
 ('https://api.algovn.com/events/<channel>')`. No replay: snapshots or
-fire-and-forget only. Broker creds: seal a copy of `amqp-creds` into your
-namespace (double-seal pattern, source `rabbitmq-events` in the password
-manager). Go publish example: see `cmd/demo-service/main.go` (newPublisher)
+fire-and-forget only. Broker creds: add an
+ExternalSecret in your namespace referencing the shared OpenBao entry
+`secret/algovn/shared/amqp-events` (procedure: docs/runbooks/secrets.md). Go publish example: see `cmd/demo-service/main.go` (newPublisher)
 in the api-control-plane repo.
 
 v1 limitation: native EventSource cannot send an Authorization header, so

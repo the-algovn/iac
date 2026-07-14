@@ -1,23 +1,31 @@
-# Full rebuild (dead Pi / fresh OS) — target < 1 hour
-Needs from password manager: sealed-secrets key, Argo admin pw, Grafana admin pw, zitadel-masterkey.
-1. Flash Ubuntu Server (arm64), hostname algovn, static IP 192.168.102.200, user ducle.
-2. Clone this repo to ~/iac. Install ansible: `sudo apt install -y ansible`.
-3. `cd ~/iac/ansible && ansible-playbook site.yml` — Traefik is disabled in the k3s config (`disable: [traefik]`); Kong is the gateway. Argo installs Kong; its default cert is the `Certificate` in namespace `kong`. The final cloudflared play fails until step 9's secrets are restored — expected; rerun with --tags cloudflared after step 9.
-4. kubeconfig: `sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown ducle: ~/.kube/config && chmod 600 ~/.kube/config`
-5. Follow docs/runbooks/bootstrap.md (includes key restore).
-   Also required from the password manager: **zitadel-masterkey** (Zitadel decrypts its key
-   material with it — wrong/lost masterkey = unrecoverable IdP data).
-6. cloudflared account cert is NOT in git: if ~/.cloudflared/cert.pem lost, `cloudflared tunnel login`
-   again (tunnel + its sealed credentials in git stay valid; login only re-authorizes the CLI).
-   ⚠️ The cluster tunnel is **algovn-k8s** (cb033e8e-8bae-42b0-b0f7-858d35daec9c). The tunnel named
-   `algovn` is a SEPARATE pre-existing production tunnel (host systemd cloudflared.service, serves
-   apex/portainer/ssh/the-button-api/the-song-api) — never delete or reuse it for the cluster.
-7. Re-check Cloudflare Access apps (docs/runbooks/cloudflare-access.md).
-8. Since 2026-07-12 the stateful volumes (vmsingle, loki, uptime-kuma, pg) live on algovn-w1,
-   not the Pi — a Pi rebuild no longer loses them. The Pi re-taints itself at registration
-   (`node-taint` in the k3s config), so workloads return to workers automatically. A full rebuild
-   recreates the `pg` cluster empty — see docs/runbooks/postgres.md for backups.
-Firewall: the Pi's ufw is hand-managed (not ansible) — a re-flash loses it. Re-enable: 22/tcp limit, 80,443/tcp allow, plus k3s inter-node 6443/tcp, 8472/udp, 10250/tcp from 192.168.102.0/24 (agents silently fail to join without these; see add-node.md).
-9. Host tunnels (remote ssh + kubectl, docs/runbooks/remote-access.md): restore
-   ~/.secrets/cloudflared/*.json from password manager (or recreate tunnels), then
+# Full rebuild (dead VM / fresh Proxmox) — target < 1 hour
+Host: Proxmox VE at 192.168.102.100. Root of trust: OpenBao in LXC 124 (`bao`, .124) —
+if IT is gone too, restore its vzdump backup first (or re-run the populate flow; see
+the OpenBao design doc in the archive). Needs from password manager: openbao init.json
+copy, Argo admin pw, zitadel-iam-admin-sa-pat.
+1. Clone VMs from template 9000 (`ubuntu-noble-tpl`, ciuser ducle): `algovn`
+   (VMID 111, .111, 4c/8G/40G) and `algovn-w1` (VMID 112, .112, 8c/16G/150G),
+   `--cpuunits 2048 --onboot 1`; start.
+2. ufw on BOTH VMs first (hand-managed, NOT ansible — agents silently fail to join
+   without it): allow 6443/tcp, 10250/tcp, 8472/udp from 192.168.102.0/24, limit
+   22/tcp, allow 80,443/tcp, enable.
+3. On the Mac: `cd ~/the-algovn/iac/ansible && ansible-playbook site.yml --skip-tags cloudflared`
+   — Traefik is disabled in the k3s config; Kong is the gateway.
+4. kubeconfig on server VM: `sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config && sudo chown ducle: ~/.kube/config && chmod 600 ~/.kube/config`.
+5. Host tunnels (docs/runbooks/remote-access.md): creds
+   `~/.secrets/cloudflared/{algovn-cp,algovn-w1}.json` on the MAC (ansible controller);
+   if lost, recreate tunnels + `route dns --overwrite-dns`. Then
    `ansible-playbook site.yml --tags cloudflared`.
+6. Refresh Mac kubeconfig (new cluster CA): extract ca/cert/key from the server's
+   k3s.yaml into context `algovn-remote` (server https://127.0.0.1:16443).
+7. Bootstrap: docs/runbooks/bootstrap.md — run from the Mac over the k8s-tunnel;
+   the ESO approle secret is the only manual secret step.
+8. Zitadel content is NOT backed up — re-bootstrap per docs/runbooks/zitadel.md
+   (bootstrap admin password: bao `algovn/zitadel/bootstrap-admin`), incl. §11:
+   new OIDC client ids → update platform/monitoring/values.yaml +
+   platform/argocd/patches/oidc-cm.yaml, write the new grafana client secret to bao
+   `algovn/monitoring/grafana-oauth`.
+9. Re-check Cloudflare Access apps (docs/runbooks/cloudflare-access.md).
+10. Stateful volumes live on algovn-w1; a full rebuild recreates the `pg` cluster
+    EMPTY — see docs/runbooks/postgres.md.
+11. Run docs/runbooks/verify.md.
