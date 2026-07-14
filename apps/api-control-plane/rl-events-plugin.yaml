@@ -1,0 +1,11 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rl-events
+  namespace: api-control-plane
+plugin: rate-limiting
+config:
+  second: 50
+  minute: 1000
+  policy: local
+  limit_by: ip

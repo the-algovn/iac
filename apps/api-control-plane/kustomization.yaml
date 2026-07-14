@@ -7,8 +7,12 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - ingress-events.yaml
+  - ingress-the-button.yaml
   - vmservicescrape.yaml
   - rate-limit-plugin.yaml
+  - rl-events-plugin.yaml
+  - rl-button-plugin.yaml
 configMapGenerator:
   - name: api-registrations
     namespace: api-control-plane

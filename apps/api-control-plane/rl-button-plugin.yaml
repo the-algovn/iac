@@ -1,0 +1,11 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rl-button
+  namespace: api-control-plane
+plugin: rate-limiting
+config:
+  second: 20
+  minute: 600
+  policy: local
+  limit_by: ip

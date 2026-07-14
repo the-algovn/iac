@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-the-button
+  namespace: api-control-plane
+  annotations:
+    konghq.com/response-buffering: "false"
+    konghq.com/plugins: rl-button
+spec:
+  ingressClassName: kong
+  rules:
+    - host: api.algovn.com
+      http:
+        paths:
+          - path: /the-button
+            pathType: Prefix
+            backend:
+              service:
+                name: api-control-plane
+                port: { number: 80 }
+  tls:
+    - hosts: [api.algovn.com]
