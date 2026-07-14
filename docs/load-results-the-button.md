@@ -246,3 +246,191 @@ for T22's launch checklist.
 | Mid-phone solver H/s | ≈234,480 H/s | **estimate** (8x divisor, see §3) |
 | `POW_W0` | 2048 (was 16384) | decision, patched live |
 | max_batch=10,000 worst case @ W0=2048, L=16 | ≈23.3 min (mid-phone est.) | derived — flagged as absurd, mitigation recommended |
+
+## Load test results (k6/SSE)
+
+Date: 2026-07-14. Scope: the two anonymous, no-credential scenarios from T21 —
+the SSE capacity ramp and the rollout drill. The authenticated click-soak
+(gRPC, forged bearers, genuine PoW) is **deferred pending a user decision on
+credential handling** and was not attempted; no secret material was touched.
+
+### Tooling decision
+
+Stock k6 cannot observe per-frame SSE timing (`http.get` blocks until the
+response completes, which an SSE stream never does — you can hold the socket
+but not see individual frames). Rather than build the `xk6-sse` extension, we
+used a small dependency-free Go client
+(`the-button-service/load/sseclient/main.go`, stdlib only) with two modes:
+
+- `-mode=ramp`: opens connections in stages at a paced rate, holds each stage,
+  and prints a per-stage summary (open count, frame-gap percentiles, connect
+  failures) with a coded abort rule (5xx seen, connect-failure rate > 2%,
+  frame-gap p95 over threshold, or open count short of target by >2%).
+- `-mode=hold`: opens N connections and holds them, auto-reconnecting on drop
+  with the SPA's actual full-jitter exponential backoff (mirrors
+  `web/apps/the-button/src/lib/liveCounter.ts`: cap starts at 5s, doubles per
+  consecutive failure, ceilinged at 60s; resets to 5s on every successful
+  open) — used for the rollout drill.
+
+Connect pacing was fixed at 12-15 new connections/sec throughout, safely
+under Kong's `rl-events` plugin limits confirmed in
+`iac/apps/api-control-plane/rl-events-plugin.yaml` (`second: 50, minute:
+1000, limit_by: ip`) — 12/s sustained is 720/min, comfortably under both the
+burst and per-minute caps. All runs originated from a single LAN machine/IP;
+**an external, multi-IP-origin repeat was not performed in this dispatch**
+(see Unverified, below) — this matters most for the reconnect-storm numbers
+in the rollout drill, which are inflated by 2000 simulated clients sharing
+one source IP.
+
+**Real-tick caveat (important):** the `the-button.counter` channel was idle
+throughout testing — no organic click traffic (`GetCounter` returned an
+empty/zero total before, during, and after the runs). The server therefore
+never emitted a real counter-changing `data:` frame; the only frames observed
+were the server's periodic `: ping` keep-alive comment, confirmed by manual
+`curl` observation before the load test to arrive roughly every 20-25s per
+connection. We used this heartbeat's inter-arrival gap as a fan-out-health
+proxy metric (labelled "frame-gap" below) instead of the spec's literal 1s
+tick latency — this is the honest substitute available without the
+authenticated click path, but it means we did **not** verify the literal
+"does the 1s tick reach everyone" claim, only "does *a* periodic server frame
+keep reaching every held-open connection." The first ramp attempt used an
+abort threshold (`p95<3000ms`) calibrated for a real 1s tick, which
+false-aborted the ramp at the very first stage (heartbeat p95 ≈25,076ms is
+merely the heartbeat's own 20-25s period, not distress) — corrected to a
+45s threshold (~2 heartbeat cycles) for all runs reported below.
+
+### Scenario A: SSE ramp
+
+| Stage target | Reached | Frame-gap p50/p95/max (ms) | Connect fails | 5xx | acp RSS (both pods) |
+|---|---|---|---|---|---|
+| 500 | 500/500 | 25000 / 25076 / 25657 | 0 | 0 | ~19-22Mi |
+| 2000 | 2000/2000 | 25000 / 25069 / 25423 | 0 | 0 | ~46-47Mi |
+| 5000 | 5000/5000 | 25000 / 25068 / 25601 | 0 | 0 | ~92-94Mi |
+| 10000 | **broke at ~7,300-7,500** | n/a — mass disconnect | 29 (502) | 29 (502) | ~111-125Mi at break |
+
+**Where it broke, precisely:** at 2026-07-14T15:45:57Z, with the ramp client
+holding ~7,382 open connections (paced at 12/s toward the 10,000 target),
+`kubectl describe pod` on `cloudflared-76554948dd-8dlrj` shows:
+
+```
+Last State:  Terminated
+  Reason:    OOMKilled
+  Exit Code: 137
+Limits:
+  memory:    512Mi
+```
+
+That single cloudflared pod (of 2 replicas, `128Mi request / 512Mi limit`
+each per `iac/platform/cloudflared/deployment.yaml`) was OOM-killed. The
+client-observed open count crashed from 7,382 to 85 within seconds (a mass
+drop of essentially every connection that pod was proxying), plus 29
+in-flight new-connect attempts got `502 Bad Gateway` during the ~1s pod
+restart window. The *other* cloudflared replica (`z5mm8`) never restarted, so
+the tunnel wasn't fully down — but the ramp did not stabilize afterward
+(`open` hovered around 1,200-1,900 while connect attempts kept climbing
+toward 10,000, i.e. connections kept dying roughly as fast as new ones
+landed), so per the brief's stop rule we manually killed the ramp client
+rather than continue grinding against an already-broken component.
+
+**What did NOT break:** `api-control-plane` (0 restarts throughout both
+pods; RSS peaked at only ~125Mi of its 1Gi limit at the moment of the
+crash — nowhere near saturated) and `kong-gateway` (0 restarts) were
+healthy the entire time. **The binding capacity constraint today is
+cloudflared's 512Mi memory limit, not Kong's 32768 worker-connection budget
+and not acp's configured `SSE_MAX_CONNS=15000` cap** — the real ceiling
+(~7,300-7,500) sits at under half of acp's own advertised design cap.
+Recommend raising cloudflared's memory limit and/or replica count before
+trusting the 15,000 SSE_MAX_CONNS figure as a real, safe operating ceiling.
+
+Site health during the whole ramp (apex, `/ui-showcase`, `/the-button/`,
+anonymous `GetCounter`, polled every ~15-17s): 200 the entire time, including
+through the crash window, except one incidental `getcounter` probe failure
+recorded at 15:45:51Z (six seconds before the OOM) — inconclusive on its own,
+flagged rather than asserted as a leading indicator. After the ramp client
+was stopped, the site returned to fully idle/healthy within the next poll.
+
+### Scenario B: rollout drill
+
+Both runs held 2,000 SSE connections (paced at 15/s), well under the ~7,300
+ceiling found in Scenario A, so cloudflared was never at risk here.
+
+**Run 1 — `api-control-plane` restart.** First attempt used a flat 0-5s
+reconnect jitter (no backoff) and produced a self-sustaining retry storm: all
+2,000 simulated clients shared one test IP, so their simultaneous reconnects
+blew through Kong's per-IP `50/s, 1000/min` limit every retry cycle, in an
+unbroken loop that never recovered (open plateaued at ~883, with a handful
+of genuine 5xx appearing from the sheer request volume). This was a **test
+tool artifact**, not a real system fault — fixed by implementing the SPA's
+actual full-jitter exponential backoff (see Tooling decision) and re-run:
+
+- Restart triggered 2026-07-14T16:00:51Z; `kubectl rollout status` reported
+  success at 16:01:14Z (**~23s** rollout).
+- Drop: essentially all 2,000 connections dropped (2,256 total disconnect
+  events, including some early reconnects that dropped again during the
+  storm).
+- Reconnect storm: the initial wave still hit Kong's per-IP limit (final
+  429 count 6,043) — again a single-test-IP artifact; 2,000 *real* users on
+  2,000 real IPs would not compete for one IP's rate-limit budget. With
+  exponential backoff, new-attempt volume per 10s window shrank cleanly
+  (1878→1783→747→627→457→454→325→219→173→140→112→73→54→31→7), confirming
+  the backoff de-synchronized the storm exactly as designed.
+- **Full recovery to 2,000/2,000 by 16:03:58Z — ~127s from restart trigger
+  to every connection back.** A small number of genuine 5xx appeared during
+  the storm (11 total, all within a 20s window, ~0.1% of ~10,300 connection
+  attempts) and stopped growing once backoff spread the load out.
+- `api-control-plane`: 0 unplanned restarts (only the deliberate rollout
+  pod replacement). Kong, cloudflared, `the-button-service`: unaffected.
+- Site health (apex/showcase/the-button/GetCounter): **200 throughout the
+  entire drill**, despite the SSE reconnect storm.
+- **Caveat:** the ~127s figure and the 429/5xx counts are inflated by the
+  single-IP methodology described above. Real distributed users would likely
+  recover in well under 30s (bounded mostly by the SPA's first-attempt 0-5s
+  jitter plus the ~23s rollout itself) — unverified without a genuinely
+  multi-IP-origin repeat.
+
+**Run 2 — `the-button-service` restart.** Restart triggered 16:08:24Z,
+rollout success reported at 16:08:48Z (**~24s**).
+
+- **Zero SSE impact**: 0 disconnects, 0 reconnects, open held at 2,000/2,000
+  through the entire restart — confirming the-button-service sits outside
+  the SSE/gateway path, exactly as designed.
+- Tick-leader failover, from pod logs: old pod logged `"tick leadership
+  released"` at `16:08:48.5737251Z`; new pod logged `"tick leadership
+  acquired"` at `16:08:48.585531356Z` — **~12ms** failover. (Could not
+  confirm actual counter-tick resumption with real data, since the channel
+  was idle throughout — this log-based leadership handoff timing is the
+  available direct evidence and is well inside the "a few seconds"
+  expectation from `candidateInterval=2s` / `leaderCallTimeout=3s`.)
+- acp/Kong/cloudflared: untouched, 0 restarts. Site health: 200 throughout.
+
+### Results table
+
+| Scenario | Origin | Target | Key result |
+|---|---|---|---|
+| sse-ramp | LAN (1 IP) | 500 → 10k | held cleanly to 5,000 (0 failures); broke at ~7,300-7,500 (cloudflared OOMKilled, 512Mi limit) — acp/Kong never distressed |
+| rollout-drill | LAN (1 IP) | 2k SSE + acp restart | ~127s to full 2,000/2,000 recovery (single-IP rate-limit-inflated); 11 real 5xx (~0.1%); site stayed 200 throughout |
+| rollout-drill | LAN (1 IP) | 2k SSE + the-button-service restart | 0 SSE disruption; tick-leader failover ~12ms; site stayed 200 throughout |
+| click-soak | — | — | **deferred** pending credential decision; not attempted (no secrets touched) |
+
+click-soak is deferred by explicit instruction for this dispatch (needs
+`POW_SECRET` and forged in-cluster bearers) — not run, not to be confused
+with the T21 brief's original LAN/service-direct design rationale.
+
+### Unverified / left for a follow-up dispatch
+
+- **Authenticated click-soak** (gRPC direct to `the-button-service`,
+  forged bearers, genuine PoW) — deferred pending a user decision on
+  credential handling for this dispatch; the 750 batch-txn/s PG ceiling
+  from the Calibration section above remains unexercised under real k6 load.
+- **External-origin repeat** (sse-ramp and rollout-drill from outside the
+  LAN, through the full Cloudflare edge, from a genuinely different IP) —
+  not run. This would give a real, non-single-IP reconnect-storm number for
+  the rollout drill, and confirm whether the ~7,300-7,500 SSE ceiling holds
+  (or differs) when connections don't all originate from one LAN machine.
+- **Real 1s tick-latency** — not measurable without organic click traffic;
+  the heartbeat-based proxy metric used here answers a related but weaker
+  question (fan-out keeps reaching everyone) than the spec's literal claim.
+- **Sub-second user impact during the cloudflared OOM** — health polling
+  ran every ~15-17s, too coarse to characterize exactly how many concurrently
+  connected real users would see a dropped stream in that specific ~1s
+  restart window (only that health recovered by the next poll).
