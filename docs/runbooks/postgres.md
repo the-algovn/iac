@@ -23,6 +23,12 @@ host that already has kubectl+kubeseal locally.
    ```
    Repeat with `-n <appns>` (and secret/file name adjusted) → `apps/<app>/pg-credentials-sealed.yaml`
    (app reads username/password keys).
+   ⚠️ The ns-postgres copy holds the RAW password (CNPG consumes it as basic-auth). If the app
+   secret instead embeds the password in a URI (`postgres://user:pw@host/db`, `redis://:pw@host` —
+   e.g. the-button's `pg-the-button`/`uri`, `redis-creds`/`url`), PERCENT-ENCODE it first:
+   `python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "$PW"`
+   — base64 passwords contain `/` and `+`, which break URI parsing raw. The two sealed copies are
+   deliberately different encodings of the same password, not copies of each other.
 3. `platform/postgres/manifests/cluster.yaml` → `spec.managed.roles` += `{name: <app>, ensure: present, login: true, passwordSecret: {name: pg-role-<app>}}`
 4. `platform/postgres/manifests/db-<app>.yaml` → Database CR (spec.name/owner `<app>`, cluster.name `pg`); add both new files to the kustomization.
 5. `scripts/validate.sh`, push, `argocd app wait postgres --core`.
@@ -33,7 +39,10 @@ never `2>&1 | head -1`): `kubectl get secret -n postgres pg-role-<app>` (missing
 ns/name — sealing is ns+name-scoped and fails SILENTLY; `kubectl describe sealedsecret -n postgres
 pg-role-<app>` shows why) · `kubectl get database -n postgres <app>` · `kubectl get cluster pg -n
 postgres -o jsonpath='{.status.managedRolesStatus}'`
-Rotation: update BOTH sealed copies (ns postgres + app ns) or DB and app silently diverge.
+Rotation: update BOTH sealed copies (ns postgres + app ns) or DB and app silently diverge. If the
+app copy is URI-shaped, redo the percent-encoding — don't copy the raw value across. Resealing does
+NOT restart pods (no reloader/checksum annotation in this cluster): `kubectl rollout restart
+deploy/<app> -n <appns>`.
 
 ## Remove an app database
 Deleting the Database CR removes only the CR (`databaseReclaimPolicy: retain` default) — data stays.
