@@ -8,11 +8,17 @@ spec:
   secretStoreRef:
     kind: ClusterSecretStore
     name: bao
+  # defaults spelled out: the openfga app syncs with ServerSideApply, where
+  # CRD-defaulted fields register as permanent drift if omitted
   target:
+    deletionPolicy: Retain
     name: openfga-preshared
     creationPolicy: Owner
   data:
     - secretKey: keys
       remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        metadataPolicy: None
         key: algovn/openfga/openfga-preshared
         property: keys
