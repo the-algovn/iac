@@ -2,7 +2,7 @@
 Run from the Mac: k8s-tunnel up, `kubectl config use-context algovn-remote`.
 1. `argocd app list --core` → every app Synced + Healthy.
 2. `kubectl get nodes` → all Ready. `kubectl get pods -A | grep -Ev 'Running|Completed'` → empty.
-3. Public path: `curl -s -o /dev/null -w '%{http_code}' https://homepage.algovn.com/` → 200.
+3. Public path: `curl -s -o /dev/null -w '%{http_code}' https://algovn.com/` → 200.
 4. Argo CD: no longer Access-gated — `curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → `200`; SSO checked in the AuthN/Z section below.
 5. LAN TLS: `curl -s --resolve x.algovn.com:443:192.168.102.111 https://x.algovn.com -o /dev/null -w '%{http_code}'` → 404 from Kong, valid cert (no cert error).
 5b. Secrets: `kubectl get externalsecrets -A` → all Ready=True; `kubectl get clustersecretstore bao` → Valid.
@@ -10,7 +10,7 @@ Run from the Mac: k8s-tunnel up, `kubectl config use-context algovn-remote`.
 6. Grafana: dashboards show live node metrics; Explore→Loki `{namespace="argocd"}` returns lines.
 7. Alert rules: vmalert evaluates platform-custom rules (Telegram delivery skipped by decision
    2026-07-12 — alerts visible in Grafana/vmalert only). Check: no ArgoAppNotSynced/Unhealthy firing.
-8. Drift test: `kubectl -n homepage scale deploy homepage --replicas=3`; within ~5 min replicas back to 1.
+8. Drift test: `kubectl -n landing scale deploy landing --replicas=3`; within ~5 min replicas back to 1.
 9. `free -h` → available ≥ 400Mi (Kong-era budget, spec §7.6 of the kong design).
 10. uptime-kuma monitors all green.
 11. Legacy tunnel `algovn` (15675449-…, old Pi production: portainer/the-button-api/
