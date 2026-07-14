@@ -4,7 +4,7 @@ metadata:
   name: cloudflared
   namespace: cloudflared
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels: { app: cloudflared }
   template:
@@ -19,9 +19,13 @@ spec:
           livenessProbe:
             httpGet: { path: /ready, port: 2000 }
             initialDelaySeconds: 10
+          # 2026-07-14 load test: 512Mi OOMKilled a pod at ~3.7k QUIC streams
+          # (~7.4k total across 2 replicas), implying ~140KB/stream — higher
+          # than the ~30-50KB design assumption. Sized for ~5k streams/pod
+          # headroom; 3 replicas puts a 10k-stream target at ~3.4k/pod.
           resources:
-            requests: { cpu: 100m, memory: 128Mi }
-            limits: { memory: 512Mi }
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1536Mi }
           volumeMounts:
             - { name: config, mountPath: /etc/cloudflared/config, readOnly: true }
             - { name: creds, mountPath: /etc/cloudflared/creds, readOnly: true }
