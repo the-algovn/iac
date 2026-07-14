@@ -1,7 +1,7 @@
 # api-control-plane (api.algovn.com)
 
-Public API gateway for every algovn product. Spec: the-algovn/api-control-plane repo,
-`docs/superpowers/specs/2026-07-13-api-control-plane-design.md`. Conventions:
+Public API gateway for every algovn product. Architecture: the-algovn/specs
+`ARCHITECTURE.md`. Conventions:
 `docs/api-conventions.md`. Auth exception: `docs/authnz-conventions.md`.
 
 ## Acceptance transcript (2026-07-14, against the live cluster)
@@ -37,9 +37,9 @@ terminal 1 -> data: {"message":"pong: sse"}                        (confirmed)
 ### Pending manual run (token-dependent checks)
 
 The `e2e-test` Zitadel service user (project `platform-e2e`) used for authnz-foundation
-acceptance was deliberately deleted for good in that project's Task 15 fixture cleanup
-(see `.superpowers/sdd/task-15-report.md` §7 — both the project and the service user
-now 404). No non-interactive credential-issuing path remains in the cluster: the only
+acceptance was deliberately deleted for good during that project's fixture cleanup —
+both the project and the service user now 404.
+No non-interactive credential-issuing path remains in the cluster: the only
 surviving PAT (`zitadel-iam-admin-sa-pat`) is the IAM-admin management-API token, not a
 suitable end-user/M2M access token for these routes, and it lives only in the password
 manager. Per convention, no new Zitadel service user/project was created ad hoc to

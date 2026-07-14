@@ -1,6 +1,6 @@
 # API conventions — api.algovn.com
 
-Spec: api-control-plane repo, docs/superpowers/specs/2026-07-13-api-control-plane-design.md.
+Architecture: the-algovn/specs `ARCHITECTURE.md`.
 Every product API lives under `https://api.algovn.com/<prefix>/…`, served by
 `api-control-plane` (Kong routes the host with NO jwt-auth plugin; the control
 plane verifies Zitadel JWTs itself — see authnz-conventions.md).

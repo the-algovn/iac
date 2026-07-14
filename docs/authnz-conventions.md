@@ -1,5 +1,5 @@
 # AuthN/Z conventions
-Spec: docs/superpowers/specs/2026-07-13-authnz-foundation-design.md. Zitadel (id.algovn.com)
+Architecture: the-algovn/specs `ARCHITECTURE.md`. Zitadel (id.algovn.com)
 owns WHO YOU ARE (users, orgs, org roles → in the token). OpenFGA owns WHAT YOU CAN TOUCH
 (per-resource relations). Kong's `jwt-auth` plugin is the edge gate. Runbooks: zitadel.md,
 zitadel-key-rotation.md.
