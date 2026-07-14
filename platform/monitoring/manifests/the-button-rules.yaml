@@ -1,0 +1,105 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: the-button-alerts
+  namespace: monitoring
+spec:
+  groups:
+    - name: the-button-edge
+      rules:
+        # cloudflared memory is the proven SSE capacity wall (2026-07-14 ramp:
+        # OOMKilled a pod at 512Mi/~7.4k QUIC streams cluster-wide, ~140KB/stream —
+        # NOT Kong, NOT acp). Fixed to 3 replicas x 1536Mi limit; these two alerts
+        # watch the same wall at the new size. Runbook: the-button.md.
+        - alert: ButtonCloudflaredMemoryHigh
+          expr: max(container_memory_working_set_bytes{namespace="cloudflared", container!=""}) > 1152 * 1024 * 1024
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: 'cloudflared working set {{ $value | humanize1024 }}B > 75% of 1536Mi limit — approaching the proven SSE OOM wall'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-cloudflared-memory--restarts'
+        - alert: ButtonCloudflaredOOMRestart
+          expr: sum(increase(kube_pod_container_status_restarts_total{namespace="cloudflared"}[10m])) > 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: 'cloudflared pod restarted in the last 10m — likely OOM at the SSE capacity wall, page now'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-cloudflared-memory--restarts'
+        - alert: ButtonAcpMemoryHigh
+          expr: max(process_resident_memory_bytes{namespace="api-control-plane"}) > 768 * 1024 * 1024
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: 'api-control-plane RSS {{ $value | humanize1024 }}B > 75% of 1Gi limit'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-acp-memory--sse-clients'
+        - alert: ButtonSSEClientsNearCap
+          expr: sum(acp_sse_clients) > 12000
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: 'SSE clients {{ $value }} > 12,000 (80% of SSE_MAX_CONNS=15000) — new connections risk 503 soon'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-acp-memory--sse-clients'
+    - name: the-button-counter
+      rules:
+        # Both gauges are observation-only (spec §8/Fix C): refreshed every 60s by
+        # whichever replica currently holds tick leadership; auto-correction was
+        # deliberately never built. Non-zero divergence is NORMAL and transient
+        # (in-flight batches) — the alert signal is that it stays non-zero, not
+        # that it is ever non-zero. abs()/max() picks up the live leader's real
+        # reading across the 2 replicas; see runbook caveat on stale readings from
+        # a just-demoted replica.
+        - alert: ButtonCounterDivergenceNonZero
+          expr: max(abs(the_button_counter_divergence)) > 0
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: 'the_button_counter_divergence non-zero for 10m — outbox healer is not keeping up, SUM(user_clicks) and Redis counter have drifted'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-counter-divergence--outbox-depth'
+        - alert: ButtonOutboxSweeperStuck
+          expr: max(the_button_counter_outbox_depth) > 100
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: 'the_button_counter_outbox_depth {{ $value }} elevated for 10m — sweeper looks stuck (runs every 30s, applies up to 500 rows/pass)'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-counter-divergence--outbox-depth'
+        - alert: ButtonServiceDown
+          expr: sum(up{namespace="the-button"}) == 0
+          for: 30s
+          labels: { severity: critical }
+          annotations:
+            summary: 'the-button-service has no up replica for 30s — the counter is frozen (no tick, no SubmitClicks)'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+    - name: the-button-data
+      rules:
+        # Commit THROUGHPUT guard near the 750-batch-txn/s engineered ceiling —
+        # measured in-cluster at 981/s, p50 2.27ms/p95 3.46ms/p99 5.34ms (~30%
+        # margin), so 700/s is an early-warning line, not the failure point itself.
+        - alert: ButtonPGCommitRateNearCeiling
+          expr: rate(cnpg_pg_stat_database_xact_commit{datname="the_button"}[1m]) > 700
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: 'the_button commit rate {{ $value | humanize }}/s near the 750/s engineered ceiling'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-pg-commit-rate'
+        - alert: ButtonPVUsageWarning
+          expr: |
+            max by (namespace, persistentvolumeclaim) (
+              kubelet_volume_stats_used_bytes{namespace=~"postgres|redis"}
+              / kubelet_volume_stats_capacity_bytes{namespace=~"postgres|redis"}
+            ) > 0.70
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: 'PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} >70% full'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-pv-usage'
+        - alert: ButtonPVUsageCritical
+          expr: |
+            max by (namespace, persistentvolumeclaim) (
+              kubelet_volume_stats_used_bytes{namespace=~"postgres|redis"}
+              / kubelet_volume_stats_capacity_bytes{namespace=~"postgres|redis"}
+            ) > 0.85
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: 'PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} >85% full — local-path cannot expand'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-pv-usage'

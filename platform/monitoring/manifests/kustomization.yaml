@@ -6,6 +6,7 @@ resources:
   - grafana-ingress.yaml
   - scrapes.yaml
   - vmrules.yaml
+  - the-button-rules.yaml
   - kong-dashboard-cm.yaml
   - postgres-dashboard-cm.yaml
   - authnz-dashboard-cm.yaml
