@@ -4,7 +4,7 @@ metadata:
   name: cloudflared
   namespace: cloudflared
 spec:
-  replicas: 3
+  replicas: 6
   selector:
     matchLabels: { app: cloudflared }
   template:
@@ -19,13 +19,26 @@ spec:
           livenessProbe:
             httpGet: { path: /ready, port: 2000 }
             initialDelaySeconds: 10
-          # 2026-07-14 load test: 512Mi OOMKilled a pod at ~3.7k QUIC streams
-          # (~7.4k total across 2 replicas), implying ~140KB/stream — higher
-          # than the ~30-50KB design assumption. Sized for ~5k streams/pod
-          # headroom; 3 replicas puts a 10k-stream target at ~3.4k/pod.
+          # 2026-07-14 re-test: with 3 replicas @ 1536Mi, the ramp hit a NEW
+          # wall at ~8,235 conns via HTTP 503 with zero cloudflared/Kong/acp
+          # log lines for the refused conns (peak mem only 339Mi/pod, 22% of
+          # limit) -- memory was never the constraint here. Logs confirm each
+          # pod registers exactly 4 QUIC connections to the edge (connIndex
+          # 0-3, "Registered tunnel connection"); this cloudflared build has
+          # no --ha-connections flag to raise per-pod, so 3 pods x 4 = 12
+          # edge connections is the actual cap, and ~8,235 ~= 8 active
+          # connections x ~1024 streams (quic-go's per-connection stream
+          # limit), i.e. load was concentrated on ~8 of the 12 connections.
+          # The lever is more edge connections, not more memory: replicas
+          # 3 -> 6 doubles registered QUIC connections (12 -> 24). Limit
+          # dropped 1536Mi -> 768Mi since observed peak was ~340Mi/pod
+          # (22% of the old limit) -- 768Mi still gives >2x headroom over
+          # anything measured. Total limit budget (6x768=4608Mi) is the same
+          # as before (3x1536=4608Mi); this redistributes the same ceiling
+          # across more, smaller pods rather than shrinking it.
           resources:
             requests: { cpu: 100m, memory: 256Mi }
-            limits: { memory: 1536Mi }
+            limits: { memory: 768Mi }
           volumeMounts:
             - { name: config, mountPath: /etc/cloudflared/config, readOnly: true }
             - { name: creds, mountPath: /etc/cloudflared/creds, readOnly: true }
