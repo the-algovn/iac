@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kong-proxy-only-cloudflared
+  namespace: kong
+spec:
+  # Selects the gateway pods only (controller pods share app.kubernetes.io/instance).
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: gateway, app.kubernetes.io/instance: kong }
+  policyTypes: [Ingress]
+  ingress:
+    # proxy ports: cloudflared pods only (CF-Connecting-IP forgery guard)
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: cloudflared }
+          podSelector:
+            matchLabels: { app: cloudflared }
+      ports:
+        - { port: 8000, protocol: TCP }
+        - { port: 8443, protocol: TCP }
+    # LAN direct path (documented in the Kong spec: node IP :80/:443 via svclb).
+    # Safe to allow: trusted_ips only lists the pod CIDR, so a LAN client's
+    # CF-Connecting-IP header is IGNORED by realip — no forgery risk from here.
+    # kube-system covers svclb hairpin pods whose source may be SNAT'd.
+    - from:
+        - ipBlock: { cidr: 192.168.102.0/24 }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 8000, protocol: TCP }
+        - { port: 8443, protocol: TCP }
+    # status (kubelet probes + VMPodScrape metrics) and admin (KIC gatewayDiscovery):
+    # unrestricted — a from-less rule allows all sources on these ports only
+    - ports:
+        - { port: 8100, protocol: TCP }
+        - { port: 8444, protocol: TCP }

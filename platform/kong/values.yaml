@@ -21,6 +21,9 @@ gateway:
     database: "off"
     ssl_cert: /etc/secrets/wildcard-algovn-tls/tls.crt
     ssl_cert_key: /etc/secrets/wildcard-algovn-tls/tls.key
+    real_ip_header: CF-Connecting-IP
+    real_ip_recursive: "on"
+    trusted_ips: 10.42.0.0/16
   resources:
     requests: { cpu: 150m, memory: 256Mi }
     limits: { memory: 1Gi }

@@ -7,3 +7,4 @@ resources:
   - jwt-auth-plugin.yaml
   - zitadel-jwt-3815696693.yaml
   - zitadel-issuer-consumer.yaml
+  - networkpolicy.yaml
