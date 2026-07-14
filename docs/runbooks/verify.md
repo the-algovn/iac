@@ -4,7 +4,10 @@ Run from the Mac: k8s-tunnel up, `kubectl config use-context algovn-remote`.
 2. `kubectl get nodes` → all Ready. `kubectl get pods -A | grep -Ev 'Running|Completed'` → empty.
 3. Public path: `curl -s -o /dev/null -w '%{http_code}' https://algovn.com/` → 200.
 4. Argo CD: no longer Access-gated — `curl -s -o /dev/null -w '%{http_code}' https://argocd.algovn.com/` → `200`; SSO checked in the AuthN/Z section below.
-5. LAN TLS: `curl -s --resolve x.algovn.com:443:192.168.102.111 https://x.algovn.com -o /dev/null -w '%{http_code}'` → 404 from Kong, valid cert (no cert error).
+5. LAN TLS: `curl -s --resolve x.algovn.com:443:192.168.102.112 https://x.algovn.com -o /dev/null -w '%{http_code}'` → 404 from Kong, valid cert (no cert error).
+   Must target the node running the kong-gateway pod (w1): cross-node LB traffic is
+   masqueraded into the pod CIDR, which the kong NetworkPolicy deliberately blocks
+   (it's the CF-Connecting-IP anti-spoofing boundary — trusted_ips is 10.42.0.0/16).
 5b. Secrets: `kubectl get externalsecrets -A` → all Ready=True; `kubectl get clustersecretstore bao` → Valid.
 5a. No Traefik: `kubectl get pods -A | grep -iE 'traefik'` → empty; `svclb-kong-gateway-proxy` owns node 80/443.
 6. Grafana: dashboards show live node metrics; Explore→Loki `{namespace="argocd"}` returns lines.
