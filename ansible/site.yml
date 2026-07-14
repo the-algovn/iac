@@ -17,6 +17,12 @@
   roles:
     - { role: k3s_agent, tags: [k3s] }
 
+- name: Worker network tuning
+  hosts: agents
+  become: true
+  roles:
+    - { role: net_tuning, tags: [net_tuning] }
+
 - name: cloudflared host tunnels (remote access)
   hosts: all
   become: true

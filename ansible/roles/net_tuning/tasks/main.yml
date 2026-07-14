@@ -1,0 +1,6 @@
+- name: Kernel socket buffer caps for high-connection edge (quic-go wants >=8MB)
+  ansible.builtin.copy:
+    src: 99-net-tuning.conf
+    dest: /etc/sysctl.d/99-net-tuning.conf
+    mode: "0644"
+  notify: reload sysctl
