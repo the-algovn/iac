@@ -23,6 +23,19 @@ spec:
             - "yes"
             - --appendfsync
             - everysec
+            # noeviction (not the default allkeys-lru): counter:global and
+            # applied:<id> are load-bearing for the-button's exactly-once
+            # accounting (see the-button-service/internal/store/store.go) —
+            # evicting one under memory pressure would silently corrupt the
+            # public counter the same way a data loss would. maxmemory sits
+            # below the 512Mi container limit so Redis rejects writes with an
+            # OOM error at the maxmemory ceiling (the service already treats
+            # Redis-unavailable as reject-the-batch, failing closed) instead
+            # of the kernel OOM-killing the process.
+            - --maxmemory
+            - 400mb
+            - --maxmemory-policy
+            - noeviction
           ports:
             - { containerPort: 6379, name: redis }
           env:
