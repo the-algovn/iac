@@ -434,3 +434,122 @@ with the T21 brief's original LAN/service-direct design rationale.
   ran every ~15-17s, too coarse to characterize exactly how many concurrently
   connected real users would see a dropped stream in that specific ~1s
   restart window (only that health recovered by the next poll).
+
+## Re-test after cloudflared sizing fix
+
+Date: 2026-07-14. Purpose: re-run the anonymous SSE ramp after raising
+cloudflared's memory limit, to confirm the OOM ceiling is gone and to find
+the *next* bottleneck. Same tool and method as the section above
+(`the-button-service/load/sseclient/main.go`, `-mode=ramp`, single LAN
+source IP, connect pacing 15/s — under Kong's `rl-events` `50/s, 1000/min`
+per-IP caps).
+
+### The fix
+
+`platform/cloudflared/deployment.yaml`:
+
+| | before | after |
+|---|---|---|
+| memory limit | 512Mi | **1536Mi** |
+| memory request | 128Mi | 256Mi |
+| replicas | 2 | **3** |
+
+### Result: the OOM ceiling is gone; a NEW, different ceiling binds at ~8.2k
+
+Stages 2,000 → 5,000 → 8,000 → 10,000, holding each 60s:
+
+| Stage target | Reached | Frame-gap p50/p95/max (ms) | Connect fails | 5xx | 429 |
+|---|---|---|---|---|---|
+| 2000 | 2000/2000 | 25000 / 25013 / 25838 | 0 | 0 | 0 |
+| 5000 | 5000/5000 | 25000 / 25010 / 25589 | 0 | 0 | 0 |
+| 8000 | 8000/8000 | 25000 / 25010 / 25603 | 0 | 0 | 0 |
+| 10000 | **8,235 — did not reach 10k** | 25000 / 25034 / 26959 | 1,747 | 1,747 (503) | 0 |
+
+- **Max concurrent SSE held: 8,235** (client-observed); `acp_sse_clients`
+  gauge peaked at **8,237**, agreeing.
+- **10,000 was NOT reached.** Past ~8.2k, new connections were refused with
+  **HTTP 503** — 1,747 of the final stage's 2,000 attempts (87% error rate),
+  which tripped the ramp's `5xx > 0` abort rule. The run was then stopped;
+  no load was left running.
+- **429 = 0 throughout** — Kong's per-IP rate limit was never hit, so this is
+  not a connect-pacing artifact.
+- Frame-gap p50 ≈ 25,000ms is the server's ~25s SSE keep-alive period (the
+  channel was idle again — no organic clicks), used as a fan-out-health proxy,
+  not the spec's literal 1s tick. It stayed flat right through saturation.
+
+### The memory fix worked — memory is no longer the constraint
+
+| | old (512Mi limit) | new (1536Mi limit) |
+|---|---|---|
+| cloudflared peak mem/pod | **OOMKilled at 512Mi** (~7.4k conns) | **339Mi / 285Mi / 22Mi** (22% of limit) |
+| cloudflared restarts | 1 (exit 137) | **0** |
+| ceiling | ~7,300–7,500 (OOM) | ~8,235 (503, not memory) |
+
+Zero restarts, zero OOMKilled events, `lastState` empty on all three pods.
+`api-control-plane` peaked at **145–147Mi of its 1Gi** limit (0 restarts);
+Kong at **640Mi of 2Gi** (0 restarts). Neither was distressed.
+
+### Where the 503 comes from (evidenced): upstream of the origin
+
+The refusals **never reached the origin**. During the 300s window covering
+the 1,747 failures, `api-control-plane` logged only **19** `/events` requests
+— *all 200*. Kong's access log shows no 503s. The failures are HTTP 503
+*status codes* (the edge accepted the stream and answered), not dial errors
+or timeouts, so this is a server-side refusal at the **Cloudflare edge ↔
+cloudflared tunnel layer**, before Kong and acp.
+
+**Per-stream memory, corrected.** ~646Mi of cloudflared RSS held ~8,235
+streams ⇒ **~80KB per QUIC stream** — not the ~140KB estimated previously.
+The old estimate assumed an even 2-pod split; in reality **load distribution
+across replicas is very uneven** (339Mi / 285Mi / **22Mi** — the third pod
+was barely used). The old 512Mi OOM is better explained by streams
+concentrating on one pod than by a high per-stream cost.
+
+**Hypothesis for the ~8.2k wall (inference, not proven).** Each cloudflared
+replica registers 4 QUIC connections to the edge (`connIndex` 0–3). With
+effectively **two** pods carrying load, 2 × 4 = 8 edge connections; at a
+~1024-concurrent-stream limit per QUIC connection that is **8,192** — within
+0.5% of the observed 8,235. This fits the data but was not confirmed against
+cloudflared's configured stream limit; it needs verification before being
+relied on.
+
+### Collateral finding: at saturation, normal API traffic 503s too
+
+Site health was polled every ~15s throughout. `algovn.com` apex,
+`/ui-showcase` and `/the-button/` returned **200 in all 96 polls** (static,
+Cloudflare-served). But **`api.algovn.com/healthz` returned 503 in 5 polls**,
+all of them inside the saturation window (16:41:55–16:43:56Z, exactly while
+`acp_sse_clients` was pinned at 8,236). So once the tunnel's stream capacity
+is exhausted, the 503s are **not confined to `/events`** — they hit the whole
+`api.algovn.com` hostname, i.e. real API users are affected. This is the most
+operationally important result of the re-test.
+
+### Verdict
+
+The sizing fix did what it was meant to do: cloudflared no longer OOMs, and
+the ~7,300–7,500 OOM ceiling is gone. But **10,000 concurrent SSE is still
+not reachable** — a *different* limit (edge/tunnel concurrent-stream
+capacity) binds at **~8,235**, with memory at only 22% of the new limit.
+`SSE_MAX_CONNS=15000` remains well above anything demonstrated.
+
+Raising the memory limit further will **not** move this ceiling. If 10k is a
+real target, the lever is more edge connections — more cloudflared replicas
+(note the third replica was barely used, so edge distribution is uneven and
+adding replicas may not scale linearly) and/or cloudflared's per-connection
+stream limit. Either way, re-measure; do not assume.
+
+### Unverified / left open
+
+- **Is ~8,235 a global tunnel ceiling or a per-source-IP edge limit?** All
+  8k+ connections came from **one source IP**. A per-IP concurrency limit at
+  the Cloudflare edge would produce exactly this signature, and a single-IP
+  test cannot distinguish the two. **An external, multi-IP-origin run is
+  required before treating ~8.2k as the system's true capacity** — the real
+  number could be higher.
+- **The 8,192-stream hypothesis** above is arithmetic that fits, not a
+  confirmed mechanism.
+- **Authenticated click-soak** — still not run (needs `POW_SECRET` + forged
+  in-cluster bearers); the 750 batch-txn/s PG ceiling remains unexercised
+  under real load.
+- **Real 1s tick-latency** — still not measurable (channel idle; heartbeat
+  gap used as a proxy).
