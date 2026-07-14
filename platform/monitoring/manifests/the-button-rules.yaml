@@ -37,12 +37,35 @@ spec:
           annotations:
             summary: 'api-control-plane RSS {{ $value | humanize1024 }}B > 75% of 1Gi limit'
             runbook: 'iac/docs/runbooks/the-button.md#alert-acp-memory--sse-clients'
+        # Lowered from 12,000 (80% of SSE_MAX_CONNS=15000) to 5,000: the
+        # measured edge wall sits at ~5.5k-8.2k (varies run to run, single-IP
+        # tests — see load-results-the-button.md), so 12,000 could never fire
+        # before the edge itself started 503ing new connections, and per the
+        # runbook it never has fired for real. 5,000 is the ONE number proven
+        # to hold cleanly in every ramp — kept (not deleted) as an early
+        # warning that gives time to apply the SSE_MAX_CONNS knob before the
+        # wall, complementing ButtonEdgeHealthzFailing below (the edge probe)
+        # which is what actually catches the 503 wall itself.
         - alert: ButtonSSEClientsNearCap
-          expr: sum(acp_sse_clients) > 12000
+          expr: sum(acp_sse_clients) > 5000
           for: 5m
           labels: { severity: warning }
           annotations:
-            summary: 'SSE clients {{ $value }} > 12,000 (80% of SSE_MAX_CONNS=15000) — new connections risk 503 soon'
+            summary: 'SSE clients {{ $value }} > 5,000 (the proven-safe ceiling) — approaching the edge wall measured at ~5.5k-8.2k'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-acp-memory--sse-clients'
+        # External edge-health signal (VMProbe + blackbox-exporter, see
+        # the-button-probe.yaml): hits the real public endpoint through
+        # Cloudflare + the tunnel. This is the ONLY alert in this file that
+        # would have caught the reproduced edge-saturation failure — at
+        # tunnel/SSE saturation, api.algovn.com/healthz itself 503s (nothing
+        # to do with SSE) while acp RSS, cloudflared RSS, and Kong all stay
+        # healthy throughout (load-results-the-button.md).
+        - alert: ButtonEdgeHealthzFailing
+          expr: probe_success{job="the-button-edge-healthz"} == 0
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: 'https://api.algovn.com/healthz failing/non-2xx for 2m — likely edge/tunnel saturation taking down the whole API host, not just SSE'
             runbook: 'iac/docs/runbooks/the-button.md#alert-acp-memory--sse-clients'
     - name: the-button-counter
       rules:
@@ -73,6 +96,58 @@ spec:
           labels: { severity: critical }
           annotations:
             summary: 'the-button-service has no up replica for 30s — the counter is frozen (no tick, no SubmitClicks)'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+        # Freshness signal (spec: internal/ticker/metrics.go's
+        # the_button_last_tick_unixtime), refreshed every ~1s by whichever
+        # replica holds tick leadership. Catches the gap ButtonServiceDown
+        # cannot: a replica that scrapes as up but holds no lock and never
+        # becomes leader, freezing the counter with no full-outage signal.
+        # Two-stage like the PV usage alerts below: warning then critical.
+        - alert: ButtonTickFrozen
+          expr: time() - max(the_button_last_tick_unixtime) > 30
+          for: 1m
+          labels: { severity: warning }
+          annotations:
+            summary: 'no successful tick in 30s+ for 1m — counter may be frozen even though the-button-service still scrapes as up'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+        - alert: ButtonTickFrozenCritical
+          expr: time() - max(the_button_last_tick_unixtime) > 30
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: 'no successful tick in 30s+ for 2m — counter is frozen, page now'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+    - name: the-button-dependencies
+      rules:
+        # Redis and RabbitMQ both being outside the-button's own namespace,
+        # ButtonServiceDown (up{namespace="the-button"}) cannot see either
+        # going down — the service degrades (fails closed on Redis loss;
+        # loses SSE counter/milestone publishes on RabbitMQ loss) while still
+        # scraping as up itself.
+        - alert: ButtonRedisDown
+          expr: min(up{namespace="redis"}) == 0 or absent(up{namespace="redis"})
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: 'redis target down/absent for 1m — the-button fails closed (rejects batches: pow:L/min_interval and counter:global all live in Redis)'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+        - alert: ButtonRabbitMQDown
+          expr: min(up{namespace="rabbitmq"}) == 0 or absent(up{namespace="rabbitmq"})
+          for: 1m
+          labels: { severity: warning }
+          annotations:
+            summary: 'rabbitmq target down/absent for 1m — counter/milestone SSE publishes stop (clicks still commit durably via Postgres + the outbox)'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+        # See platform/redis/manifests/statefulset.yaml: maxmemory 400mb,
+        # noeviction. redis_memory_{used,max}_bytes come from redis_exporter
+        # (confirmed present in-cluster). Warns with margin before Redis
+        # starts rejecting writes with an OOM error at the maxmemory ceiling.
+        - alert: ButtonRedisMemoryHigh
+          expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: 'redis memory {{ $value | humanizePercentage }} of the 400mb maxmemory ceiling (noeviction) for 10m — approaching reject-writes territory'
             runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
     - name: the-button-data
       rules:
