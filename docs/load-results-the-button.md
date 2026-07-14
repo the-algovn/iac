@@ -95,8 +95,22 @@ commit_latency p50=2.268161ms p95=3.462124ms p99=5.340885ms max=15.634252ms
 **achieved_rate ≈ 981/s, fail=0, p50=2.27ms, p95=3.46ms, p99=5.34ms** — this
 lines up with spec §12's ~3ms/txn model (p50/p95 both sit right around the
 3ms mark) and comfortably clears the 750 batch-txn/s engineered ceiling with
-margin, at the real transaction shape (2-table write + `ON CONFLICT` upsert +
-achievement insert) and real contention (5,000 cycled `user_sub` values).
+margin, at a representative transaction shape (2-table write + `ON CONFLICT`
+upsert + achievement insert) and real contention (5,000 cycled `user_sub`
+values).
+
+**Correction (launch-hardening review): this bench's transaction is LIGHTER
+than production's real batch shape — the 750/s ceiling below is EXTRAPOLATED
+for production, not directly measured.** `oneTxn` (`load/soak/main.go`) commits
+2 writes: the `user_clicks` upsert and a `user_achievements` insert. Production's
+`clicks.Submit` (`internal/clicks/clicks.go`) commits 3 writes in that same
+transaction — the same upsert and achievement insert, **plus a `counter_outbox`
+insert** (the transactional-outbox row) — and then, once the Redis apply lands,
+issues a **separate post-commit `DELETE FROM counter_outbox`**: a second, distinct
+commit per batch. So this bench measured roughly 1 commit/batch of a 2-write
+transaction, while production is effectively **~2 commits/batch** (one 3-write
+commit plus one 1-statement delete commit). 981/s and the latency numbers above
+are real and were genuinely measured — just for a lighter shape than what ships.
 
 This also resolves the apparent §1 vs §2 tension: with `MaxConns=10` and many
 backends committing close together, PostgreSQL's group commit lets several
@@ -115,14 +129,20 @@ Postgres ceiling. Left unresolved — a good candidate for T21's k6 ramp, which
 paces load independently of this harness.
 
 **Verdict on the capacity model**: the measured ceiling is **not** materially
-below the assumed 750 batch-txn/s — real evidence (in-cluster, same-node,
-real txn shape) supports sustaining **at least ~980/s** at low, stable
-latency. Recommend **keeping the existing 750/s engineered ceiling and T22
-alert thresholds as-is** (they now have a demonstrated ~30% margin rather
-than being a pure derivation from an assumed 3ms figure). Recommend also
-alerting on **PG commit p95 trending toward ~5-10ms** as an early warning,
-since §1 shows storage fsync latency has less headroom than hoped and is
-worth watching under real load (T21/T22).
+below the assumed 750 batch-txn/s for the *lighter* shape this bench actually
+ran — real evidence (in-cluster, same-node) supports sustaining **at least
+~980/s** of a 2-write/1-commit transaction, at low, stable latency. That
+number does **not** directly carry over to production's heavier shape (see
+correction above: effectively ~2 commits/batch there, not 1) — treat the
+750/s ceiling as **EXTRAPOLATED** for production, with the same-node fsync
+headroom (§1) as the reason to stay cautious rather than assume the ~30%
+margin measured here holds unchanged. Recommend **keeping the existing 750/s
+engineered ceiling and T22 alert thresholds as-is** for now (nothing here
+argues for lowering it), but re-measuring with the real production
+transaction shape before leaning on that margin. Recommend also alerting on
+**PG commit p95 trending toward ~5-10ms** as an early warning, since §1 shows
+storage fsync latency has less headroom than hoped and is worth watching
+under real load (T21/T22).
 
 Cleanup performed: scratch DB `the_button_soak` dropped
 (`DROP DATABASE the_button_soak;`), debug pod `soak-runner` deleted. The live
@@ -241,7 +261,7 @@ for T22's launch checklist.
 | `fdatasync` (serialized, single-writer) | ~548-570 ops/sec (~1.75-1.8ms/op) | measured, in-pod `pg_test_fsync` |
 | Soak achieved rate (in-cluster, same-node, target 1000/s) | 981/s, fail=0 | measured |
 | Commit latency p50/p95/p99 (in-cluster) | 2.27ms / 3.46ms / 5.34ms | measured |
-| Safe engineered PG ceiling | 750 batch-txn/s stands, ~30% measured margin | derived from above |
+| Safe engineered PG ceiling | 750 batch-txn/s stands — **EXTRAPOLATED** for production's ~2-commits/batch shape (the ~30% margin above was measured on a lighter 1-commit/batch bench) | derived from above |
 | Desktop solver H/s (Node, M4 Pro) | 1,875,841 H/s avg | measured |
 | Mid-phone solver H/s | ≈234,480 H/s | **estimate** (8x divisor, see §3) |
 | `POW_W0` | 2048 (was 16384) | decision, patched live |
@@ -341,6 +361,15 @@ and not acp's configured `SSE_MAX_CONNS=15000` cap** — the real ceiling
 (~7,300-7,500) sits at under half of acp's own advertised design cap.
 Recommend raising cloudflared's memory limit and/or replica count before
 trusting the 15,000 SSE_MAX_CONNS figure as a real, safe operating ceiling.
+
+**SUPERSEDED by later re-tests below.** Raising the memory limit (512Mi ->
+1536Mi) did fix this specific OOM, but raising replica count did not buy
+capacity: 3->6 replicas *lowered* the observed ceiling (8,235 -> 5,536) with
+half the pods sitting idle (see "Re-test 2: tunnel stream capacity"). The
+ceiling is at the Cloudflare edge, not a function of cloudflared's own
+replica count or memory. 768Mi (6 replicas) is the settled, evidence-backed
+size going forward — see "Configuration left in place, and why" — not a
+step toward a still-larger memory/replica configuration.
 
 Site health during the whole ramp (apex, `/ui-showcase`, `/the-button/`,
 anonymous `GetCounter`, polled every ~15-17s): 200 the entire time, including
