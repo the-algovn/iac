@@ -6,7 +6,7 @@ metadata:
 plugin: redirect
 config:
   status_code: 301
-  location: https://algovn.com/the-button
+  location: https://algovn.com/the-button/
 ---
 # Backend is never reached: the redirect plugin short-circuits in the access
 # phase. The selector-less service only satisfies the Ingress backend schema.
