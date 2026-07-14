@@ -4,7 +4,7 @@ metadata:
   name: api-control-plane
   namespace: api-control-plane
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
@@ -23,7 +23,9 @@ spec:
           env:
             - { name: REGISTRATIONS_DIR, value: /etc/api-registrations }
             - { name: ISSUER, value: "https://id.algovn.com" }
-            - { name: CORS_ORIGINS, value: "https://*.algovn.com" }
+            - { name: CORS_ORIGINS, value: "https://*.algovn.com,https://algovn.com" }
+            - { name: GOMEMLIMIT, value: 900MiB }
+            - { name: SSE_MAX_CONNS, value: "15000" }
             - name: AMQP_URL
               valueFrom: { secretKeyRef: { name: amqp-creds, key: url } }
           readinessProbe:
@@ -35,8 +37,8 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 20
           resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits: { memory: 192Mi }
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
           volumeMounts:
             - { name: registrations, mountPath: /etc/api-registrations, readOnly: true }
       volumes:
