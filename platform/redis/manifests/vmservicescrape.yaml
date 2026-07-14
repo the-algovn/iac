@@ -1,0 +1,11 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: redis
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [redis] }
+  selector:
+    matchLabels: { app: redis }
+  endpoints:
+    - port: metrics
