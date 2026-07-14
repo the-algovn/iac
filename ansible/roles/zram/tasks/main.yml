@@ -1,6 +1,8 @@
-- name: Install systemd zram generator
+- name: Install systemd zram generator (+ modules-extra — cloud-image kernels ship zram there)
   ansible.builtin.apt:
-    name: systemd-zram-generator
+    name:
+      - systemd-zram-generator
+      - "linux-modules-extra-{{ ansible_kernel }}"
     state: present
 
 - name: Configure zram0
