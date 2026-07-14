@@ -4,7 +4,7 @@ metadata:
   name: cloudflared
   namespace: cloudflared
 spec:
-  replicas: 6
+  replicas: 2
   selector:
     matchLabels: { app: cloudflared }
   template:
@@ -27,18 +27,18 @@ spec:
           # restarts. 768Mi keeps >2x headroom; total budget (6x768) equals the
           # old 3x1536.
           #
-          # replicas 3 -> 6: DOES NOT RAISE SSE CAPACITY. Each pod registers 4
-          # QUIC connections to the edge (connIndex 0-3 in the logs) and this
-          # build has no --ha-connections flag, so replicas are the only lever
-          # on edge connection count. We doubled it (12 -> 24) and re-ramped:
-          # the 503 wall did NOT move up -- the measured ceiling went 8,235 ->
-          # 5,536, and 3 of the 6 pods never received a single stream (idle at
-          # 18Mi). The wall is at the Cloudflare edge, is insensitive to our
-          # replica count, and varies run to run; a single-source-IP test cannot
-          # tell a global tunnel ceiling from a per-IP edge cap. 6 replicas is
-          # retained only as cheap redundancy (~18Mi/idle pod) and on the
-          # UNPROVEN hypothesis that more edge connections help spread many
-          # distinct real client IPs. Do not cite it as headroom.
+          # replicas: 2 (was ramped 3 -> 6 during load testing, now scaled back).
+          # Replica count DOES NOT RAISE SSE capacity: each pod registers 4 QUIC
+          # connections to the edge (connIndex 0-3 in the logs) and this build
+          # has no --ha-connections flag. Going 12 -> 24 connections did not move
+          # the ~8k 503 wall (it actually went 8,235 -> 5,536, with 3 of 6 pods
+          # idle) -- the wall is at the Cloudflare edge / the WiFi uplink w1 uses
+          # to reach the router, not our pod count. So we run the minimum plural
+          # for deploy safety (a rolling restart replaces one pod at a time
+          # instead of dropping every SSE connection). Right-sized for the ~1k
+          # CCU expected in reality; the measured ~8k single-IP ceiling is
+          # accepted for now. THE REAL LEVER to lift it is wiring w1 to the
+          # router over ethernet (it is on WiFi today) -- pending.
           # Evidence: docs/load-results-the-button.md, "Re-test 2".
           resources:
             requests: { cpu: 100m, memory: 256Mi }
