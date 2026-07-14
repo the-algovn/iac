@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: pg-the-button
+  namespace: the-button
+spec:
+  encryptedData:
+    uri: AgC3lkSpWKOkkS9ZVSpAYDD2lrJu9PJXTxTLBDIukwCz0llGNg7rtTRmZCbsT4Cqk+mEdBzguTVhuW84g4YiGO/YOFCOwNO3O2a36ZvzxmnKXXZnBqr4CFfCfjON4GvPhBDowESYEAsYUTYw2G+Z57H/skrbgOCGddbtQefIEZ646ohqxGxAf+bbh00+xKordb+JXqk3W7qHVnrp0qxx+kk6+0/jkU1P2zOhZviZsHxgYuPT6O6KptPlIzE/vClgks3d6CTfJdoTmdQCjJt21eIhL8shXlK6zEUGX/KpHRT5yhqIKFsRT5Jx7OaaMWTV8aWePMXfPeVBXpZjzCY/FWMaZyq0tTlS23gqc8fDSot4VwdNt/VibeJKLoqYLcQ8DyVhUBdpunDbT2EMxcz+WSPaP0LG83LMAkhXLT2pSdVjIGi819l5sNBPn9w1QLLhJCub7eoO7uN7flzTxNM9Mi7IJeywCShDaUavXfVIMm6xp54xrjVllSNC1VTBZLfepUgXmuj4AjVgVtcbgfxcUPatbzXPj+gPqyDkMDSnMlkBKpvKj8q0eolCfu43K38CvhG9jhF57FXUMJbAsKlShJkAlTs5P5gIg/xp5QzfUX0X9xqPZiWeTowOt/l6ARxTbq4P1wCbk+Yur0k5CAwsNWGdNcGYA/HuGgHF76k45QUZN87TSJ4De8Mp0y1xux4ODjQdV7KhgK5f8FjjN+ToCycJAgIFrR65ghBhrfMQsk54tKDbcBl7Ms/8ctFqovzoryFYFuVAd8GeIAeGVCNbycgwBQA8oeRL7i2iWPvbOM9XO8NqzTTHDpL6Krqyt8bY53M7yhOecAD4
+  template:
+    metadata:
+      name: pg-the-button
+      namespace: the-button

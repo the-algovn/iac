@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: the-button
+  namespace: postgres
+spec:
+  name: the_button
+  owner: the_button
+  cluster: { name: pg }

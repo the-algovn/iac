@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: amqp-creds
+  namespace: the-button
+spec:
+  encryptedData:
+    url: AgBPSsR2P17torzt7P440BRNysBckClTnBnWo0mi2BrotMoy+KdNfzPdfhcL7ukms/MFbwO8bKBObsKznHsDmvRGOvSuwVHiXCzMyrnVwVONJJZXZq7TQtkqFagwSnWVhGKRXhm0FfZsuI/09UO+QvQArz7Ua5358lW0YeTSOhTMa6Guv5Cj57aUg15bgjS6frV+g7YVsMCIxdAGts533Vf/q7saySnjJ/87gT/AEAoyT6qHfpKSwemC7+hJWcSHnap+DPGG+0ccfhuL2b+Io49AMnmBGt6aE+vftXmMlQJDO5WzxN5l3FjWAP+z5S3tY3xKC4HnHH1m5yaAMk5GClckxUkPWlO+j8ApwkOz2hZQlOEUX0zJwtgIzgUHB809TPTRF9UfP5SdogNT4+//3qHBcGAR1uXoXMJY2552vuHnHtHx4FBIFvHGQ836jUQRw66/5NfsHHSZ0S2jInedk8Xp+y/hAEhJP+pCw7yEeDIzZK9dteD4qDCdSsIPj/b6qVZ3biMG8ukn3JPrFybIbtmRHtgMhEkzXz0Hu5Rk8PHMKOMl/sf6pYvYWkIy2zcwVP5pn1xpK1wdOIHM7XOhsMkxNsHQp3s5DVsqsjJhucW7UJcY93bbQJD/4uFrxMS+/jj6oQC615+COZzWBJk1mi8yJnPYEC2h/R2xYHJOS++KtmKUzHYusZDHVgS3PWCQB4kbFfmHDEHpeH6VFiTvdjt32E5DdZrESkcmNWrYxxSU/nXDIHx5Bm3Y1Mz8dERqupCV+gBG+Qqgc21NdexEZm3tB3sZaFH9NghqFWTcWC35e5PNtK6c1ABv
+  template:
+    metadata:
+      name: amqp-creds
+      namespace: the-button

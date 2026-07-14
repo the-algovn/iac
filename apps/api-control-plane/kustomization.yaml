@@ -18,6 +18,7 @@ configMapGenerator:
     namespace: api-control-plane
     files:
       - registrations/demo.yaml
+      - registrations/the-button.yaml
 generatorOptions:
   disableNameSuffixHash: true # stable name => ConfigMap updates hot-reload in place, no pod restart
 images:

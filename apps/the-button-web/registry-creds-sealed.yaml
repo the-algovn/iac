@@ -1,0 +1,14 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: registry-creds
+  namespace: the-button-web
+spec:
+  encryptedData:
+    .dockerconfigjson: AgA2yV4XQN5WfY9CDYYl6gPs1AbH9uQNia+HT3u937uhVbYNXgb4eTCODcciDDK8nd/q9ZV6rOFKTEx0UMsdzno+LZAa+xvFiF8kSKInoGiZe4wEcfDX12XFqDtXvhVsDmAkHJNboiVifQoIHUCIFB5t1Id9QmU9FIOHJGO9sk4K5C9Hu9JxNsFxbw+hx6oOH5M4I5H3FE6qx2qGYfI/517CtTDd7J7lSEJYkWmhX5aNK4E758n2pZxmwz2wnF6pBGBNHqpwEc63t+1PDMFjt7LP1ZXhaH4w3PyVPnZ49H8gE8qgI3PRuya/IyP5s/WbEq2wFQSkhKlYUcaL4KQT7UDowENF9QJeMiRM3iDTv/bh7mVCbAKLct7IO9YdsfRMt9UUOt3sUJnHbRqYlsm+Qui4AXwisRJp52HiyTi4xRg72SpU7iQJkKR3rnkr0uEoTs+6GrfvH1d862btRaTM8IXn+FSbDkDNnupyl0A2oJ/pOfRUjlipCBKKMGjeYWpDeI72jGku+xfri8We7t6Beh0wE6nP6VmBis4odnzPaB+lQEEmlz9Ft8BFQt6QiyRsl/ypR2tJ4RqQNiItx7UAS8MJr6BmabRZVbKAqvbHdp3IMw8oHgedsQCQDfYRkQYDybC/ulfXjieiAdSESGB2m3Laq2G64Yp2n5o762dxWk0sJ3/rNPIDs05J5ijCreMmDHHJbSHvjQEW88TnJRMgR5DjDbJVNPBumCOtPAWqUIE6Wm6rO+kZJKzLC3CF/4ZEPAik+eE939d5kq4YX2pCADA6qnsn6dANyacXIJkktJK3yst67QhfkJGYAQuXS5CNCu2ipaEGzHDcoGdLZf6NPrjNCB5j6nARJMcc7zUIk/OSuf5K4oMzrLNbXpA686sJZtCscaPSonERDZFdfqGoQjR1TbX/k7gHTZZvUyPUt3G1M8NB
+  template:
+    metadata:
+      name: registry-creds
+      namespace: the-button-web
+    type: kubernetes.io/dockerconfigjson

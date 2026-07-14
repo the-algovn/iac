@@ -1,0 +1,22 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: the-button-updater
+  namespace: argocd
+spec:
+  applicationRefs:
+    - namePattern: the-button
+      images:
+        - alias: the-button-service
+          imageName: ghcr.io/the-algovn/the-button-service:main
+          commonUpdateSettings:
+            updateStrategy: digest
+            pullSecret: pullsecret:argocd/ghcr-creds
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/the-algovn/the-button-service
+      writeBackConfig:
+        method: git:secret:argocd/git-creds
+        gitConfig:
+          branch: main
+          writeBackTarget: kustomization:.

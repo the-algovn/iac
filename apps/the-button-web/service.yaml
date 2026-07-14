@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-the-button
+  namespace: the-button-web
+spec:
+  selector: { app: web-the-button }
+  ports: [{ port: 80, targetPort: 80 }]

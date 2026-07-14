@@ -7,3 +7,5 @@ resources:
   - landing-updater.yaml
   - api-control-plane-updater.yaml
   - demo-service-updater.yaml
+  - the-button-updater.yaml
+  - the-button-web-updater.yaml

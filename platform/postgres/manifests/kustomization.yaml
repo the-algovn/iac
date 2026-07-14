@@ -7,3 +7,5 @@ resources:
   - pg-role-zitadel-sealed.yaml
   - db-openfga.yaml
   - pg-role-openfga-sealed.yaml
+  - db-the-button.yaml
+  - pg-role-the-button-sealed.yaml

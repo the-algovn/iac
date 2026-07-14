@@ -29,6 +29,10 @@ spec:
         ensure: present
         login: true
         passwordSecret: { name: pg-role-openfga }
+      - name: the_button
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-the-button }
     services:
       additional:
         - selectorType: rw

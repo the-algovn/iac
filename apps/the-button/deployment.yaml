@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: the-button-service
+  namespace: the-button
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: the-button-service }
+  template:
+    metadata:
+      labels: { app: the-button-service }
+    spec:
+      containers:
+        - name: the-button-service
+          image: ghcr.io/the-algovn/the-button-service:main
+          ports:
+            - { containerPort: 9090, name: grpc }
+            - { containerPort: 9091, name: metrics }
+          env:
+            - { name: LISTEN_ADDR, value: ":9090" }
+            - { name: METRICS_ADDR, value: ":9091" }
+            - { name: POW_W0, value: "16384" }
+            - name: PG_URL
+              valueFrom: { secretKeyRef: { name: pg-the-button, key: uri } }
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: redis-creds, key: url } }
+            - name: AMQP_URL
+              valueFrom: { secretKeyRef: { name: amqp-creds, key: url } }
+            - name: POW_SECRET
+              valueFrom: { secretKeyRef: { name: pow-secret, key: key } }
+          readinessProbe:
+            grpc: { port: 9090 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            grpc: { port: 9090 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }
+      imagePullSecrets:
+        - name: registry-creds

@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-the-button
+  namespace: the-button-web
+spec:
+  ingressClassName: kong
+  rules:
+    - host: algovn.com
+      http:
+        paths:
+          - path: /the-button
+            pathType: Prefix
+            backend:
+              service:
+                name: web-the-button
+                port: { number: 80 }
+  tls:
+    - hosts: [algovn.com]
