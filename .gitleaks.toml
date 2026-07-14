@@ -1,8 +1,5 @@
-# SealedSecret CRs (*-sealed.yaml) hold asymmetrically encrypted blobs — safe to
-# commit by design; only the in-cluster controller key can decrypt them.
+# Secrets live in OpenBao (LXC on the Proxmox host) and reach the cluster via
+# External Secrets Operator — the repo holds only ExternalSecret references,
+# never secret material. No allowlist needed.
 [extend]
 useDefault = true
-
-[allowlist]
-description = "SealedSecret manifests"
-paths = ['''.*-sealed\.yaml$''']

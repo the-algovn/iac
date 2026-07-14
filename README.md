@@ -5,7 +5,7 @@ IaC + GitOps source of truth for the `algovn` k3s cluster — Raspberry Pi 5 con
 - **Architecture**: the-algovn/specs `ARCHITECTURE.md`
 - **Layers**: `ansible/` (node) → `bootstrap/` (one-time Argo CD) → `clusters/` + `platform/` + `apps/` (GitOps, Argo-managed)
 - **Runbooks**: docs/runbooks/
-- **Rule**: no plaintext secrets, ever — SealedSecrets only. `scripts/validate.sh` before every push.
+- **Rule**: no secret material in git, ever — secrets live in OpenBao and sync via ExternalSecrets. `scripts/validate.sh` before every push.
 
 ## Status
 Cluster live. Acceptance: docs/runbooks/verify.md — all green on 2026-07-12 (Telegram alerting skipped by decision; Renovate installation pending).
