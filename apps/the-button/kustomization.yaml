@@ -8,6 +8,7 @@ resources:
   - pow-secret-sealed.yaml
   - pg-the-button-sealed.yaml
   - deployment.yaml
+  - poddisruptionbudget.yaml
   - service.yaml
   - vmservicescrape.yaml
 images:

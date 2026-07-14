@@ -1,0 +1,9 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: the-button-service
+  namespace: the-button
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: the-button-service }

@@ -14,6 +14,17 @@ spec:
     metadata:
       labels: { app: the-button-service }
     spec:
+      # Prefer (not require) spreading the 2 replicas across nodes. Today
+      # there is only ONE schedulable amd64 worker (w1; the Pi control-plane
+      # node can't run amd64 images), so a hard constraint would leave a pod
+      # Pending forever — ScheduleAnyway makes this a no-op today and takes
+      # effect automatically once a second amd64 worker joins the cluster.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: the-button-service }
       containers:
         - name: the-button-service
           image: ghcr.io/the-algovn/the-button-service:main
