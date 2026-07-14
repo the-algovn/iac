@@ -10,4 +10,4 @@ images:
   - name: ghcr.io/the-algovn/web-showcase
     newName: ghcr.io/the-algovn/web-showcase
     newTag: main
-    digest: sha256:51085b091c1340206e4cd25df4f83bac0b50e9c2a08b061ad9f410d60e369ccb
+    digest: sha256:212cb77de41adfbb86813bafb32d679e398a5f7c98d4ca827f6dd8bb94e775a0
