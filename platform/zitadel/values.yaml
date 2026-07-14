@@ -12,7 +12,7 @@ zitadel:
         Host: pg-rw.postgres.svc
         Port: 5432
         Database: zitadel
-        MaxOpenConns: 10
+        MaxOpenConns: 20
         MaxIdleConns: 5
         User:
           Username: zitadel
@@ -22,13 +22,14 @@ zitadel:
           SSL: { Mode: disable }
 resources:
   requests: { cpu: 150m, memory: 384Mi }
-  limits: { memory: 1Gi }
+  limits: { memory: 2Gi }
 env:
   - name: GOMEMLIMIT
-    value: 900MiB
+    value: 1800MiB
 ingress:
   enabled: true
   className: kong
+  annotations: { konghq.com/plugins: rl-idp }
   hosts:
     - host: id.algovn.com
       paths: [{ path: /, pathType: Prefix }]
@@ -41,6 +42,7 @@ login:
   ingress:
     enabled: true
     className: kong
+    annotations: { konghq.com/plugins: rl-idp }
     hosts:
       - host: id.algovn.com
         paths: [{ path: /ui/v2/login, pathType: Prefix }]
