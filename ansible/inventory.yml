@@ -3,16 +3,15 @@ all:
     server:
       hosts:
         algovn:
-          ansible_host: 192.168.102.200
-          ansible_connection: local
-          cloudflared_tunnel: algovn-pi
+          ansible_host: 192.168.102.111
+          cloudflared_tunnel: algovn-cp
           cloudflared_ingress:
-            - { hostname: ssh-pi.algovn.com, service: "ssh://localhost:22" }
+            - { hostname: ssh-cp.algovn.com, service: "ssh://localhost:22" }
             - { hostname: k8s.algovn.com, service: "tcp://localhost:6443" }
     agents:
       hosts:
         algovn-w1:
-          ansible_host: 192.168.102.201
+          ansible_host: 192.168.102.112
           cloudflared_tunnel: algovn-w1
           cloudflared_ingress:
             - { hostname: ssh-w1.algovn.com, service: "ssh://localhost:22" }
