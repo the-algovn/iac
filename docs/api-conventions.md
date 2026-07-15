@@ -6,10 +6,14 @@ Every product API lives under `https://api.algovn.com/<prefix>/…`, served by
 plane verifies Zitadel JWTs itself — see authnz-conventions.md).
 
 ## Calling an API
-`POST /<prefix>/<pkg.Service>/<Method>` with a JSON body (protojson mapping,
-≤1 MiB). Errors: `{"code":"<grpc-code>","message":"…"}`; status mapping:
-InvalidArgument→400, Unauthenticated→401, PermissionDenied→403, NotFound→404,
-Unavailable→502, DeadlineExceeded→504, else 500.
+Each gRPC method is exposed at an explicit HTTP verb + path declared in the
+product's registration (below), e.g. `GET /the-button/counter`,
+`POST /the-button/clicks`. Write methods take a JSON body (protojson mapping,
+≤1 MiB). An unregistered path returns 404; a registered path called with the
+wrong verb returns 405 with an `Allow` header. Errors:
+`{"code":"<grpc-code>","message":"…"}`; status mapping: InvalidArgument→400,
+Unauthenticated→401, PermissionDenied→403, NotFound→404, Unavailable→502,
+DeadlineExceeded→504, else 500.
 
 ## Registering a product API
 Add `apps/api-control-plane/registrations/<product>.yaml` in THIS repo (PR-reviewed,
@@ -18,13 +22,17 @@ hot-reloaded — no gateway restart):
     prefix: /<product>              # single lowercase segment
     upstream: dns:///<svc>.<ns>.svc.cluster.local:9090
     defaultRule: authenticated      # anonymous | authenticated | role:<r>
-    routes:
-      - method: algovn.<product>.v1.<Service>/<Method>
-        rule: anonymous
+    routes:                         # authoritative allowlist: unlisted methods are unreachable
+      - method: algovn.<product>.v1.<Service>/<Method>   # gRPC target
+        verb: GET                   # GET | POST | PUT | PATCH | DELETE
+        path: /<resource>           # relative to prefix; ^(/[a-z0-9-]+)+$
+        rule: anonymous             # anonymous | authenticated | role:<r>
         deadline: 3s                # optional, default 5s
     channels:
       - name: <product>.<topic>     # SSE channel, same rule vocabulary
         rule: anonymous
+
+Each `(verb, prefix+path)` pair must be unique across all registrations.
 
 Requirements for the upstream: pure gRPC on :9090 h2c with server reflection
 enabled (descriptors are fetched via reflection; unary only in v1). The
