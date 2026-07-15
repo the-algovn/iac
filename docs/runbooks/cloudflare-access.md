@@ -2,7 +2,11 @@
 
 Policies live in Cloudflare, NOT in git — re-check after any rebuild.
 Team domain: `the-thing-universe.cloudflareaccess.com`. Owner email: `minhducle.dev@gmail.com`.
-Current protected hosts: none (admin UIs use Zitadel SSO — grafana 2026-07-13, argocd 2026-07-13). Pending: the ssh/k8s host-tunnel apps below.
+Current protected hosts (2026-07-15): `pve.algovn.com`, `ssh-pve.algovn.com` (Proxmox
+host tunnel — MUST stay gated, see remote-access.md), `ssh-w1.algovn.com`,
+`k8s.algovn.com`. Admin UIs use Zitadel SSO instead (grafana, argocd — 2026-07-13).
+⚠️ STILL PENDING: `ssh-cp.algovn.com` — app created 2026-07-15 did not take effect
+(curl returns 200, not 302); re-check the app's hostname spelling.
 
 ## Recreate the policies
 Template — policy `admin-only`: Action Allow, Include → Emails → `minhducle.dev@gmail.com`;
@@ -29,12 +33,11 @@ Check, in order: the policy's Include→Emails entry matches the typed email EXA
 spam folder (`noreply@notify.cloudflare.com`); Zero Trust → Settings → Authentication →
 Login methods includes "One-time PIN"; the app accepts that identity provider.
 
-## Pending (2026-07-13): remote-access hostnames
-`ssh-pi.algovn.com`, `ssh-w1.algovn.com`, `k8s.algovn.com` (host tunnels,
-docs/runbooks/remote-access.md) are NOT yet gated — apps deferred at setup.
-Create: apps `ssh-pi`/`ssh-w1`/`k8s`, one per hostname, using the `admin-only` template above.
-Then verify: `curl -s -o /dev/null -w '%{http_code}' https://<host>/`
-→ `302`, and move these hosts to the protected list above.
+## Pending: ssh-cp.algovn.com
+The only remaining ungated remote-access hostname (host tunnels renamed 2026-07-15:
+`ssh-pi` → `ssh-cp`). Create/fix app `ssh-cp` for exactly `ssh-cp.algovn.com` using the
+`admin-only` template above, then verify
+`curl -s -o /dev/null -w '%{http_code}' https://ssh-cp.algovn.com/` → `302`.
 
 ## Known gap
 `ssh.algovn.com` (pre-existing production tunnel `algovn`) is NOT Access-protected —
