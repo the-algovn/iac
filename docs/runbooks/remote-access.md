@@ -11,6 +11,14 @@ cleanup) — never reuse either name.
 | ssh-cp.algovn.com   | algovn-cp  | cloudflared-algovn-cp.service  | algovn VM localhost:22   |
 | k8s.algovn.com      | algovn-cp  | cloudflared-algovn-cp.service  | algovn VM localhost:6443 |
 | ssh-w1.algovn.com   | algovn-w1  | cloudflared-algovn-w1.service  | w1 VM localhost:22       |
+| pve.algovn.com      | algovn-pve | cloudflared-algovn-pve.service | PVE host :8006 (web UI)  |
+| ssh-pve.algovn.com  | algovn-pve | cloudflared-algovn-pve.service | PVE host localhost:22    |
+
+`algovn-pve` runs on the Proxmox HOST and is hand-managed (the host is outside the
+ansible inventory): config `/etc/cloudflared/algovn-pve.yml`, unit
+`cloudflared-algovn-pve.service`. ⚠️ Its hostnames MUST stay behind Cloudflare Access
+(the PVE web UI is root on everything) — if the Access app is ever missing, stop the
+unit first, fix the app, then start it.
 
 ⚠️ Access gate PENDING (as of 2026-07-13): the three Access apps (email OTP,
 admin-only) are not yet created — until then the endpoints rely on SSH key auth /
