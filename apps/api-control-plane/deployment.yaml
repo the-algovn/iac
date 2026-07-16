@@ -23,6 +23,8 @@ spec:
           env:
             - { name: REGISTRATIONS_DIR, value: /etc/api-registrations }
             - { name: ISSUER, value: "https://id.algovn.com" }
+            # the-thing project id + the-button-web client id -- the aud in Zitadel tokens.
+            - { name: AUDIENCE, value: "381978168812110193,381980626372329841" }
             - { name: CORS_ORIGINS, value: "https://*.algovn.com,https://algovn.com" }
             - { name: GOMEMLIMIT, value: 900MiB }
             - { name: SSE_MAX_CONNS, value: "15000" }
