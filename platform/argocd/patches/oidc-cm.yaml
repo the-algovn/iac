@@ -7,6 +7,6 @@ data:
   oidc.config: |
     name: AlgoVN ID
     issuer: https://id.algovn.com
-    clientID: "381588600782913889"
+    clientID: "381964801196228977"
     enablePKCEAuthentication: true
     requestedScopes: ["openid", "profile", "email"]
