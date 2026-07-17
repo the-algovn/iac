@@ -69,54 +69,42 @@ spec:
             runbook: 'iac/docs/runbooks/the-button.md#alert-acp-memory--sse-clients'
     - name: the-button-counter
       rules:
-        # Both gauges are observation-only (spec §8/Fix C): refreshed every 60s by
-        # whichever replica currently holds tick leadership; auto-correction was
-        # deliberately never built. Non-zero divergence is NORMAL and transient
-        # (in-flight batches) — the alert signal is that it stays non-zero, not
-        # that it is ever non-zero. abs()/max() picks up the live leader's real
-        # reading across the 2 replicas; see runbook caveat on stale readings from
-        # a just-demoted replica.
-        - alert: ButtonCounterDivergenceNonZero
-          expr: max(abs(the_button_counter_divergence)) > 0
-          for: 10m
-          labels: { severity: critical }
-          annotations:
-            summary: 'the_button_counter_divergence non-zero for 10m — outbox healer is not keeping up, SUM(user_clicks) and Redis counter have drifted'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-counter-divergence--outbox-depth'
-        - alert: ButtonOutboxSweeperStuck
-          expr: max(the_button_counter_outbox_depth) > 100
-          for: 10m
-          labels: { severity: critical }
-          annotations:
-            summary: 'the_button_counter_outbox_depth {{ $value }} elevated for 10m — sweeper looks stuck (runs every 30s, applies up to 500 rows/pass)'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-counter-divergence--outbox-depth'
         - alert: ButtonServiceDown
           expr: sum(up{namespace="the-button"}) == 0
           for: 30s
           labels: { severity: critical }
           annotations:
-            summary: 'the-button-service has no up replica for 30s — the counter is frozen (no tick, no SubmitClicks)'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
-        # Freshness signal (spec: internal/ticker/metrics.go's
-        # the_button_last_tick_unixtime), refreshed every ~1s by whichever
-        # replica holds tick leadership. Catches the gap ButtonServiceDown
-        # cannot: a replica that scrapes as up but holds no lock and never
-        # becomes leader, freezing the counter with no full-outage signal.
-        # Two-stage like the PV usage alerts below: warning then critical.
+            summary: 'the-button namespace has no up target for 30s — api and publisher both down; clicking and the counter are dead'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
+        # Freshness signal (the-button-service internal/publisher/metrics.go's
+        # the_button_last_poll_unixtime), set on every successful SUM poll by
+        # the single-replica publisher — changed or not, so an idle counter
+        # never reads as frozen. The publisher pod is the ONLY exporter, so
+        # absent() covers the pod not existing (deleted, unschedulable) —
+        # without it a missing pod would silence the alert entirely. Catches
+        # what ButtonServiceDown cannot: api up, publisher dead → SSE clients
+        # keep their connection and stare at a frozen counter.
         - alert: ButtonTickFrozen
-          expr: time() - max(the_button_last_tick_unixtime) > 30
+          expr: (time() - max(the_button_last_poll_unixtime) > 30) or absent(the_button_last_poll_unixtime) == 1
           for: 1m
           labels: { severity: warning }
           annotations:
-            summary: 'no successful tick in 30s+ for 1m — counter may be frozen even though the-button-service still scrapes as up'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+            summary: 'no successful counter poll in 30s+ for 1m — publisher dead or Postgres unreadable; live counter is frozen for SSE viewers'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-broadcast-frozen--publish-failures'
         - alert: ButtonTickFrozenCritical
-          expr: time() - max(the_button_last_tick_unixtime) > 30
+          expr: (time() - max(the_button_last_poll_unixtime) > 30) or absent(the_button_last_poll_unixtime) == 1
           for: 2m
           labels: { severity: critical }
           annotations:
-            summary: 'no successful tick in 30s+ for 2m — counter is frozen, page now'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+            summary: 'no successful counter poll in 30s+ for 2m — counter is frozen, page now'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-broadcast-frozen--publish-failures'
+        - alert: ButtonPublishFailures
+          expr: increase(the_button_publish_failures_total[5m]) > 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: 'publisher polls are healthy but AMQP publishes are failing — SSE counter frames stalling while GetCounter stays correct; check RabbitMQ'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-broadcast-frozen--publish-failures'
     - name: the-button-dependencies
       rules:
         # Redis and RabbitMQ both being outside the-button's own namespace,
@@ -129,15 +117,15 @@ spec:
           for: 1m
           labels: { severity: critical }
           annotations:
-            summary: 'redis target down/absent for 1m — the-button fails closed (rejects batches: pow:L/min_interval and counter:global all live in Redis)'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+            summary: 'redis target down/absent for 1m — the-button fails closed (rejects batches: PoW difficulty (pow:L), throttle (pow:min_interval), and burn keys all live in Redis; the counter itself is unaffected, Postgres SUM is its only truth)'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
         - alert: ButtonRabbitMQDown
           expr: min(up{namespace="rabbitmq"}) == 0 or absent(up{namespace="rabbitmq"})
           for: 1m
           labels: { severity: warning }
           annotations:
-            summary: 'rabbitmq target down/absent for 1m — counter/milestone SSE publishes stop (clicks still commit durably via Postgres + the outbox)'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+            summary: 'rabbitmq target down/absent for 1m — counter/milestone SSE publishes stop (clicks still commit durably to Postgres, the only counter truth — that path does not touch RabbitMQ)'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
         # See platform/redis/manifests/statefulset.yaml: maxmemory 400mb,
         # noeviction. redis_memory_{used,max}_bytes come from redis_exporter
         # (confirmed present in-cluster). Warns with margin before Redis
@@ -148,7 +136,7 @@ spec:
           labels: { severity: critical }
           annotations:
             summary: 'redis memory {{ $value | humanizePercentage }} of the 400mb maxmemory ceiling (noeviction) for 10m — approaching reject-writes territory'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down--no-leader'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
     - name: the-button-data
       rules:
         # Commit THROUGHPUT guard near the 750-batch-txn/s engineered ceiling —

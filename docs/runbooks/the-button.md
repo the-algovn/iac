@@ -6,8 +6,9 @@ api-control-plane registration `/the-button` and SSE channel `the-button.counter
 Design docs: `specs/products/the-button.md` (product) and `specs/ARCHITECTURE.md`
 (platform); this runbook is self-contained and doesn't require either for on-call
 use. Load/calibration evidence: `iac/docs/load-results-the-button.md`. Data: Redis ns `redis`
-(hot control state — `pow:L`, `pow:min_interval`, `counter:global`), Postgres db
-`the_button` in the shared CNPG cluster (durable truth). Alerts: VMRule
+(hot control state — `pow:L`, `pow:min_interval`), Postgres db
+`the_button` in the shared CNPG cluster (durable truth — `SUM(user_clicks)` is the
+only counter truth). Alerts: VMRule
 `the-button-alerts` (`platform/monitoring/manifests/the-button-rules.yaml`).
 
 ## Degradation ladder (manual — nothing here is automated)
@@ -27,11 +28,11 @@ REDIS_PASS=$(kubectl --context algovn-remote -n redis get secret redis-auth -o j
    kubectl --context algovn-remote -n redis exec redis-0 -- redis-cli -a "$REDIS_PASS" SET pow:min_interval 10
    kubectl --context algovn-remote -n redis exec redis-0 -- redis-cli -a "$REDIS_PASS" SET pow:L 16
    ```
-   ⚠️ The tick leader recomputes both keys every ~1s from an EWMA of accepted-submit
-   rate (`internal/ticker/ticker.go`'s `lead()`). A manual `SET` is overwritten within
-   one tick UNLESS real load already keeps the controller pinned there itself — treat
-   this as a nudge to confirm the controller's own ceiling, not a durable latch. For a
-   durable clamp use knobs 2/3 below instead.
+   ⚠️ The publisher (single replica) recomputes both keys every ~1s from an EWMA of
+   accepted-submit rate. A manual `SET` is overwritten within ~1s UNLESS real load
+   already keeps the controller pinned there itself — treat this as a nudge to
+   confirm the controller's own ceiling, not a durable latch. For a durable clamp use
+   knobs 2/3 below instead.
 
 2. **Lower the SSE cap (edge relief, durable, but NOT connection-preserving).** Fewer
    held connections means less cloudflared memory and less acp memory:
@@ -60,8 +61,10 @@ REDIS_PASS=$(kubectl --context algovn-remote -n redis get secret redis-auth -o j
    wall is at the Cloudflare edge, not in a pod we can scale. Scale cloudflared only for
    redundancy or a genuine memory alert; to relieve an SSE ceiling use knob 2 (lower
    `SSE_MAX_CONNS`) instead. Restarting/scaling `the-button-service` does not drop
-   SSE (that path is entirely acp+cloudflared); tick leadership fails over to another
-   replica in ~12ms (measured).
+   SSE (that path is entirely acp+cloudflared); each api replica polls Postgres
+   independently for its own `GetCounter` cache, so there is no leadership to fail
+   over. `the-button-publisher` (the separate single-replica broadcaster) is
+   unaffected by scaling `the-button-service` either way.
 
 ## What each alert means
 
@@ -106,52 +109,51 @@ First three checks:
 3. Apply knob 2 (lower `SSE_MAX_CONNS`) first; scale acp (knob 3) if RSS stays high
    after the cap drops.
 
-### Alert: counter divergence & outbox depth
-- `ButtonCounterDivergenceNonZero` — `the_button_counter_divergence` (SUM(user_clicks)
-  minus Redis `counter:global`) non-zero for 10m straight.
-- `ButtonOutboxSweeperStuck` — `the_button_counter_outbox_depth` (rows in
-  `counter_outbox`) elevated above 100 for 10m; the sweeper runs every 30s and applies
-  up to 500 rows/pass, so a healthy sweeper should never sit above that for long.
+### Alert: broadcast frozen / publish failures
 
-**Do NOT hand-edit Redis.** Both metrics are observation-only by design —
-nothing in the service auto-corrects them, because a diff between Postgres and Redis
-can't tell a lost increment from one merely in flight. The counter's exactly-once
-design: every batch commits once in Postgres and writes a `counter_outbox` row in the
-same transaction, then a best-effort apply increments Redis; the tick leader's sweeper
-re-applies any row whose apply never landed, keyed by an idempotency marker so a
-retry can never double-count.
+Since the 2026-07-17 api-publisher split there is no outbox and no Redis
+counter: Postgres SUM(user_clicks) is the only counter truth and a
+single-replica publisher Deployment (`the-button-publisher`) polls it every
+second, publishing frames to RabbitMQ for acp's SSE hub. **The counter
+cannot drift by construction** — there is nothing to heal and no divergence
+to watch.
+
+**ButtonTickFrozen / ButtonTickFrozenCritical** — the publisher has not
+completed a successful poll in 30s+ (or its metric is absent entirely: pod
+deleted/unschedulable). Effect: SSE viewers see a frozen live counter (their
+connection stays open through acp, so the web client's poll fallback does
+NOT kick in); page loads / GetCounter stay correct via the api's own cache.
+Diagnose:
+
+    kubectl --context algovn-remote -n the-button get pods -l app=the-button-publisher
+    kubectl --context algovn-remote -n the-button logs deploy/the-button-publisher --tail=50
+
+- Pod crash/restart: k8s self-heals in seconds; node loss: reschedule can
+  take ~5min — accepted single-replica trade.
+- Pod healthy but polls failing: look for "counter poll failed" → Postgres
+  problem; check the postgres namespace.
+
+**ButtonPublishFailures** — polls healthy, AMQP publishes failing: RabbitMQ
+problem (see ButtonRabbitMQDown). Frames stall; counter accounting is
+unaffected.
+
+### Alert: service down
+- `ButtonServiceDown` — `up{namespace="the-button"}` has no target scraping as up for
+  30s. This namespace holds both the api (`the-button-service`) replicas and the
+  `the-button-publisher` pod, so it only fires on a full namespace outage: clicking
+  (`SubmitClicks`) and the counter are both dead.
+- A publisher-only death (api still up and scraping fine) does NOT trip this alert —
+  that gap is covered by `ButtonTickFrozen` / `ButtonTickFrozenCritical` instead (see
+  previous section). If the counter looks frozen but this alert is silent, check that
+  alert rather than trusting this one's absence.
 
 First three checks:
-1. Which replica currently holds tick leadership — grep logs for `"tick leadership
-   acquired"` (`kubectl --context algovn-remote -n the-button logs -l app=the-button-service --tail=200`).
-   ⚠️ Both metrics are per-process gauges refreshed only by the CURRENT leader; a
-   just-demoted replica's copy freezes at its last value instead of resetting to zero,
-   so confirm the alerting series belongs to the *current* leader before treating it as
-   real drift.
-2. Postgres and Redis both reachable from that leader (check its recent logs for
-   `"divergence metric"` / `"outbox depth metric"` read failures — those short-circuit
-   the refresh entirely, which can look identical to real drift).
-3. If genuinely non-zero and persistent: check for a stuck sweeper (`"outbox sweep
-   failed"` in logs) or a leadership flap (repeated acquire/release) rather than
-   attempting any manual fix — there is no supported manual healing path.
-
-### Alert: service down / no leader
-- `ButtonServiceDown` — no `the-button-service` replica scraping as up for 30s. The
-  counter freezing (no tick, `SubmitClicks` failing) is the single most user-visible
-  failure this alert set covers.
-- Known gap: this fires only on a full outage (both replicas unreachable). There is no
-  dedicated "tick freshness" metric yet — a single replica stuck in a state where it
-  holds no lock and never becomes leader, while still scraping as up, would not trip
-  this alert. If the counter looks frozen but this alert is silent, check leadership
-  directly (see checks below) rather than trusting the alert's absence.
-
-First three checks:
-1. `kubectl --context algovn-remote -n the-button get pods` — both replicas present
-   and Ready?
+1. `kubectl --context algovn-remote -n the-button get pods` — which pods are down:
+   api (`the-button-service`) replicas, `the-button-publisher`, or both?
 2. `curl -s https://api.algovn.com/the-button/algovn.button.v1.ButtonService/GetCounter -d '{}'`
    — does it respond at all (gRPC reachable through the gateway)?
-3. Postgres/Redis reachability from the pod (see divergence alert's check 2) — a
-   downed dependency can starve every replica of leadership simultaneously.
+3. Postgres reachability from the affected pod(s) — a downed Postgres can starve
+   every replica at once even though each still scrapes as up.
 
 ### Alert: PG commit rate
 `ButtonPGCommitRateNearCeiling` — `the_button` commit rate > 700/s for 5m, against the
@@ -200,15 +202,17 @@ dump/restore to a larger volume before critical fires, not after.
 ## Known limits — stated honestly
 
 - **Single-node reality: node loss takes the whole product (and login) down, not
-  just a pod.** Both `the-button-service` replicas AND the Postgres primary (`pg-1`)
-  run on `algovn-w1` — the cluster's only schedulable worker (the control-plane
-  VM `algovn` doesn't schedule these workloads). The "2 replicas / ~12ms tick-leader
-  failover" story below only covers a pod restart or crash on that same node;
-  losing `algovn-w1` itself takes out the-button-service, Postgres (and therefore
-  Zitadel/login, which shares the CNPG cluster), with no automatic failover to
+  just a pod.** The api (`the-button-service`) replicas, `the-button-publisher`, AND
+  the Postgres primary (`pg-1`) all run on `algovn-w1` — the cluster's only
+  schedulable worker (the control-plane VM `algovn` doesn't schedule these
+  workloads). A pod crash/restart self-heals in seconds (k8s reschedules on the same
+  node); losing `algovn-w1` itself is a different story — it takes out
+  the-button-service, the-button-publisher, and Postgres (and therefore Zitadel/login,
+  which shares the CNPG cluster) simultaneously, with no automatic failover to
   another node because there isn't one yet. The topologySpreadConstraints added to
   `apps/the-button/deployment.yaml` is a preference that only takes effect once a
-  second amd64 worker joins.
+  second amd64 worker joins — it cannot help `the-button-publisher` regardless,
+  since that Deployment is single-replica by design.
 - **10,000 concurrent users is the target. It has never been reached. 5,000 is the
   only number proven to hold.** Three ramps (2026-07-14) tell a consistent story:
   5,000 concurrent SSE connections hold cleanly every time (0 failures, 0 5xx, flat
@@ -244,5 +248,22 @@ dump/restore to a larger volume before critical fires, not after.
 - **Rollout behavior (measured):** restarting `api-control-plane` drops SSE
   connections; clients reconnect with jittered backoff (~2,000 connections, single-IP
   test methodology: ~127s to full recovery, inflated by shared-IP rate limiting).
-  Restarting `the-button-service` does **not** drop SSE (0 disruption observed); tick
-  leadership fails over to the new leader in ~12ms.
+  Restarting `the-button-service` does **not** drop SSE (0 disruption observed) — SSE
+  lives entirely in acp+cloudflared, and each api replica polls Postgres
+  independently for its own `GetCounter` cache, so there's no leadership to fail
+  over. Restarting/losing `the-button-publisher` does briefly freeze the live counter
+  for SSE viewers until the replacement pod's next successful poll — see
+  `ButtonTickFrozen`.
+
+## 2026-07-17 outbox removal — one-time cleanup (done during rollout)
+
+After the api/publisher split rolled out, the orphaned outbox table and
+Redis counter key were removed manually (the Go schema deliberately never
+DROPs — old pods still wrote to the table during the rolling update):
+
+    kubectl --context algovn-remote -n postgres exec -it <cnpg-primary-pod> -- \
+      psql -U postgres -d the_button -c 'DROP TABLE IF EXISTS counter_outbox;'
+    kubectl --context algovn-remote -n redis exec -it <redis-pod> -- \
+      redis-cli -a "$REDIS_PASSWORD" DEL counter:global
+
+`applied:*` marker keys expired on their own (1h TTL).
