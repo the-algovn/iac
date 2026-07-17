@@ -241,15 +241,30 @@ every accepted batch) has a table to write to. This is exercised by
 (`internal/store/store_integration_test.go` in the-button-service) — it asserts
 the table exists again and that `goose_db_version` reflects the reversal.
 
+⚠️ **A manual rollback does not survive auto-sync on its own.** The
+`the-button` Argo Application (ns `argocd`) has `syncPolicy.automated: {prune:
+true, selfHeal: true}`, and argocd-image-updater polls continuously — the next
+sync's PreSync Job runs `Up` again and undoes a `-down` within minutes.
+Suspend auto-sync FIRST (or revert the image first), do the rollback, then
+re-enable:
+
+    argocd app set the-button --sync-policy none --core
+    # ... perform the rollback below ...
+    argocd app set the-button --sync-policy automated --auto-prune --self-heal --core
+
 The runtime image is distroless (no shell, no goose CLI), so there is no
 `kubectl exec` path. Run it as a one-off Job from the same image with the
 command overridden, then delete it. Reuse the `app: the-button-migrate` pod
 label so it inherits the existing `the-button-migrate` NetworkPolicy (egress
 limited to Postgres + DNS) instead of running unrestricted — this namespace has
 no default-deny, so a pod with any other label gets no NetworkPolicy applied to
-it at all:
+it at all. Read the image from `deploy/the-button-service`, not the PreSync
+Job — the Job's `BeforeHookCreation` delete policy means it may already be
+pruned by the time you roll back, which would leave `IMAGE` empty and the
+`apply` below failing closed; the Deployment always exists and always carries
+the same image:
 
-    IMAGE=$(kubectl --context algovn-remote -n the-button get job the-button-migrate \
+    IMAGE=$(kubectl --context algovn-remote -n the-button get deploy the-button-service \
       -o jsonpath='{.spec.template.spec.containers[0].image}')
 
     cat > /tmp/the-button-migrate-down.yaml <<EOF
@@ -282,9 +297,23 @@ it at all:
 
 Job name (`the-button-migrate-down`) is deliberately different from the
 PreSync hook's fixed name (`the-button-migrate`) so this doesn't collide with
-or get pruned by Argo's `BeforeHookCreation` policy on the next sync. To
-reverse more than one migration, repeat the apply/logs/delete cycle — each run
-only reverses one.
+or get pruned by Argo's `BeforeHookCreation` policy on the next sync.
+
+⚠️ **STOP after one run. Do NOT repeat this cycle.** There are only two
+migrations. One run of the Job above reverses 002 and recreates
+`counter_outbox` — safe. Running it a **second** time reverses 001 instead,
+whose Down is:
+
+    DROP TABLE IF EXISTS user_achievements;
+    DROP TABLE IF EXISTS user_clicks;
+
+**That is every click and every achievement in production.** `internal/migrate`
+guards against this: a second `-down` refuses to run and exits non-zero unless
+`-force-destructive` is also passed in the Job's `command`. Treat that flag as
+the loaded gun it is — it exists for tearing down a throwaway/dev database,
+never to push past this warning on prod. Never run `-down` a second time
+against production. If you need to go back further than version 1, stop and
+restore from a Postgres backup instead (`docs/runbooks/postgres.md`).
 
 (A `kubectl run --overrides=...` one-liner was considered but rejected: its
 `--overrides` JSON patches onto the container `kubectl run` auto-generates,
