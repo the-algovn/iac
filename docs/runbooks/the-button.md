@@ -92,10 +92,11 @@ First three checks:
 
 ### Alert: acp memory & SSE clients
 - `ButtonAcpMemoryHigh` — api-control-plane RSS > 75% of its 1Gi limit for 10m.
-- `ButtonSSEClientsNearCap` — `sum(acp_sse_clients) > 12000` (80% of `SSE_MAX_CONNS=15000`)
-  for 5m. Measured: acp RSS peaked ~110–125Mi of 1Gi at 5.5k–7.4k connections — acp was
-  never close to distressed in any run. A memory alert here without a matching connection
-  count is more likely a leak or a different workload.
+- `ButtonSSEClientsNearCap` — `sum(acp_sse_clients) > 5000` (the proven-safe ceiling) for
+  5m. The threshold tracks the *edge* wall measured at ~5.5k–8.2k, NOT acp's own
+  `SSE_MAX_CONNS` cap — see the note below. Measured: acp RSS peaked ~110–125Mi of 1Gi at
+  5.5k–7.4k connections — acp was never close to distressed in any run. A memory alert here
+  without a matching connection count is more likely a leak or a different workload.
 
 ⚠️ **`SSE_MAX_CONNS=15000` is not a capacity claim.** The edge 503s new connections
 somewhere between ~5.5k and ~8.2k (single-IP measurement), so this cap has never actually
