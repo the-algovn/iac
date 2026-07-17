@@ -19,6 +19,16 @@ spec:
           env:
             - { name: RI_APP_PORT, value: "5540" }
             - { name: RI_APP_HOST, value: "0.0.0.0" }
+            # REQUIRED — not optional. Redis Insight 3.6.0 gates ALL database
+            # auto-discovery (including the env pre-seeding below) behind EULA
+            # acceptance: without this, /api/databases returns [] forever and
+            # the pre-seeded connection silently never appears. The upstream
+            # docs list this var's default as "true"; that is WRONG — a live
+            # GET /api/settings shows "agreements":null until it is set
+            # explicitly. Verified against 3.6.0 on 2026-07-17.
+            # Setting it accepts the EULA (SSPL for our use) — the same
+            # acceptance you would otherwise click in the UI.
+            - { name: RI_ACCEPT_TERMS_AND_CONDITIONS, value: "true" }
             # The connection is pre-seeded from env on EVERY start, which is what
             # makes /data disposable (emptyDir below, no PVC on a backup-less
             # cluster). Redis Insight drops env-added connections on a restart
