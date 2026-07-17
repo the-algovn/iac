@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: redis-auth
+  namespace: redisinsight
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: redis-auth
+    creationPolicy: Owner
+  data:
+    - secretKey: password
+      remoteRef:
+        key: algovn/redis/redis-auth
+        property: password
