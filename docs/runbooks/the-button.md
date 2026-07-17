@@ -240,17 +240,38 @@ every accepted batch) has a table to write to. This is exercised by
 `TestMigrate_DownRecreatesCounterOutbox`
 (`internal/store/store_integration_test.go` in the-button-service) — it asserts
 the table exists again and that `goose_db_version` reflects the reversal.
+⚠️ Running `-down` more than once against production is irreversibly
+destructive — read the STOP warning below before running anything in this
+section.
 
-⚠️ **A manual rollback does not survive auto-sync on its own.** The
-`the-button` Argo Application (ns `argocd`) has `syncPolicy.automated: {prune:
-true, selfHeal: true}`, and argocd-image-updater polls continuously — the next
-sync's PreSync Job runs `Up` again and undoes a `-down` within minutes.
-Suspend auto-sync FIRST (or revert the image first), do the rollback, then
-re-enable:
+⚠️ **A manual rollback does not survive auto-sync on its own — and suspending
+`the-button` alone is NOT enough.** This is an app-of-apps setup:
+`iac/bootstrap/root-app.yaml` declares the `root` Application (ns `argocd`)
+over `clusters/algovn` with `directory.recurse: true` and its own
+`syncPolicy.automated: {prune: true, selfHeal: true}`; `the-button`
+Application's `syncPolicy.automated: {prune: true, selfHeal: true}`
+(`iac/clusters/algovn/apps/the-button.yaml`) is declared **in git**, same as
+every other app `root` manages. Suspending only `the-button` by patching its
+live syncPolicy is drift from that git state, and `root`'s selfHeal reconciles
+drift straight back — within its next pass (seconds) it flips `the-button`
+back to `automated`, silently re-enabling auto-sync mid-rollback, so the next
+sync's PreSync Job runs `Up` again and undoes the `-down` you just ran. That
+is exactly the failure this step exists to prevent, one level up.
 
+**Suspend `root` FIRST, then `the-button`. Re-enable in the reverse order**
+(the-button, then root) — never the other way, and never `the-button` alone.
+
+Run these `argocd` commands **on cp** (`ssh cp`), matching the convention in
+`docs/runbooks/postgres.md`: `--core` talks to whatever kube-context is
+current on the machine you run it from, and cp's is the unambiguous one — do
+not run these from your laptop, where the wrong current context would make
+the suspend silently fail while the rollback proceeds with auto-sync live.
+
+    argocd app set root --sync-policy none --core
     argocd app set the-button --sync-policy none --core
     # ... perform the rollback below ...
     argocd app set the-button --sync-policy automated --auto-prune --self-heal --core
+    argocd app set root --sync-policy automated --auto-prune --self-heal --core
 
 The runtime image is distroless (no shell, no goose CLI), so there is no
 `kubectl exec` path. Run it as a one-off Job from the same image with the
@@ -275,6 +296,7 @@ the same image:
       namespace: the-button
     spec:
       backoffLimit: 0
+      activeDeadlineSeconds: 600
       template:
         metadata:
           labels: { app: the-button-migrate }
@@ -312,8 +334,17 @@ guards against this: a second `-down` refuses to run and exits non-zero unless
 `-force-destructive` is also passed in the Job's `command`. Treat that flag as
 the loaded gun it is — it exists for tearing down a throwaway/dev database,
 never to push past this warning on prod. Never run `-down` a second time
-against production. If you need to go back further than version 1, stop and
-restore from a Postgres backup instead (`docs/runbooks/postgres.md`).
+against production.
+
+**There is no backup to fall back on.** `docs/runbooks/postgres.md` opens with
+"⚠️ NO BACKUPS (decision 2026-07-12) — node/disk loss = data loss," and that is
+still true today: no `ScheduledBackup`, no `Backup`, `cluster/pg`'s
+`.spec.backup` and `.spec.plugins` are both empty, no barman object store
+anywhere in the cluster. Reversing 001 is not a step you can walk back —
+once its `DROP TABLE` statements commit, every click and every achievement
+the product has ever recorded is gone permanently, with no restore path,
+forced or not. `-force-destructive` is for a throwaway/dev database only;
+never pass it against production.
 
 (A `kubectl run --overrides=...` one-liner was considered but rejected: its
 `--overrides` JSON patches onto the container `kubectl run` auto-generates,
