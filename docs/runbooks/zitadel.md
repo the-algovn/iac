@@ -57,11 +57,30 @@ runbook is the only reproduction path.
     platform/argocd/patches/oidc-cm.yaml. The app MUST also enable "User Info inside ID Token"
     (idTokenUserinfoAssertion) — Argo reads RBAC claims from the ID token only; without it the
     email claim is absent, RBAC matches nothing, and Argo shows the bare sub as username with an
-    empty app list. Do NOT enable the project-level "Check authorization/project on
-    authentication" toggles on platform-admin — they make Zitadel refuse unauthorized users at
-    the IdP (untranslated Errors.User.ProjectRequired page) instead of the designed app-side deny
-    (Grafana strict mapping / Argo empty list). Only "Assert Roles on Authentication" stays
-    checked.
+    empty app list. Both project-level checks ARE enabled here (projectRoleCheck +
+    hasProjectCheck, verified 2026-07-17): a user with no `platform-admin` role is refused at the
+    IdP with an untranslated Errors.User.ProjectRequired page, rather than reaching Grafana/Argo
+    and being denied app-side (Grafana strict mapping / Argo empty list). Those app-side denies
+    still exist as a second layer, but they are no longer what users hit first. "Assert Roles on
+    Authentication" is also on.
+    ⚠️ These checks mean "has ANY role" — with roles admin/editor/viewer here, a `viewer` can
+    authenticate to every app in this project. That is why redis.algovn.com uses its own
+    single-role project (item 12) instead of joining this one.
+12. Internal-tool SSO project (id 382147336131838321): Projects → `internal-tool` —
+    **Assert Roles OFF**, **Check authorization on Authentication ON**, **Check for Project
+    on Authentication ON**, exactly ONE role: `admin`. App `redisinsight` (client id
+    382147566483079537) — Web, auth method CODE (client secret), redirect
+    https://redis.algovn.com/oauth2/callback; secret in bao at algovn/redisinsight/oauth.
+    Grant admins the `admin` role. See docs/runbooks/redisinsight.md.
+    Why this project exists rather than reusing `platform-admin`: Redis Insight has no
+    app-side deny of its own, so its gate MUST be at the IdP or the proxy. The project
+    role check means "has ANY role", so it only equals "admin only" on a single-role
+    project — on `platform-admin` (admin/editor/viewer) it would hand a Grafana `viewer`
+    a prod-Redis write console.
+    ⚠️ Keep `admin` the SOLE role here. A second role silently widens access to the Redis
+    write console, and nothing will warn you.
+    ⚠️ Only ever grant the role — never a bare project grant (zitadel#9633: an empty-role
+    grant still passes the check).
 
 ## Verification (fresh private browser window each)
 - Google signup: /ui/v2/login → Google → new user lands in org `users`.

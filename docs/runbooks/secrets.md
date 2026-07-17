@@ -17,6 +17,9 @@ Shared entries (single source, many consumers — replaces the old double-seal p
 - `shared/ghcr-pull` — GHCR pull `.dockerconfigjson` for all app namespaces + image-updater
 - `shared/cloudflare-dns` — API token for cert-manager + external-dns
 - `shared/amqp-events` — AMQP URL for every events publisher
+- `redisinsight/oauth` — Zitadel client secret + oauth2-proxy cookie secret for
+  redis.algovn.com (see redisinsight.md). The Redis password is NOT duplicated here:
+  ns `redisinsight` has its own ExternalSecret pointing at `algovn/redis/redis-auth`.
 
 Non-cluster secrets also live here: `home/nas-smb` (Samba), `zitadel/bootstrap-admin`.
 
