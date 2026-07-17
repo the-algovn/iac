@@ -20,4 +20,4 @@ images:
   - name: ghcr.io/the-algovn/the-button-service
     newName: ghcr.io/the-algovn/the-button-service
     newTag: main
-    digest: sha256:b2f3ddc4a362366c555e255c6d8aaee46e2690317963e03a5a85ee3e23001fc4
+    digest: sha256:2a17c510e2160f284a301767cf29a473a16bacbc387fc2b6ba4f5c132572be4c
