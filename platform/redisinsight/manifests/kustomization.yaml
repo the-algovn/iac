@@ -5,3 +5,7 @@ resources:
   - redis-auth-external.yaml
   - deployment.yaml
   - service.yaml
+  - emails-configmap.yaml
+  - oauth2-proxy-deployment.yaml
+  - oauth2-proxy-service.yaml
+  - ingress.yaml
