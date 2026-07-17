@@ -9,3 +9,4 @@ resources:
   - oauth2-proxy-deployment.yaml
   - oauth2-proxy-service.yaml
   - ingress.yaml
+  - networkpolicy.yaml
