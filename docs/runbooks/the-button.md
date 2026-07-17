@@ -1,8 +1,10 @@
 # the-button (algovn.com/the-button)
 
 Live global click counter; PoW-gated. Service ns `the-button` (`the-button-service`,
-2 replicas, gRPC :9090 + metrics :9091), SPA ns `the-button-web`, routed via
-api-control-plane registration `/the-button` and SSE channel `the-button.counter`.
+2 replicas, gRPC :9090 + metrics :9091, and `the-button-publisher`, single replica,
+polls Postgres `SUM(user_clicks)` every 1s and publishes counter/milestone frames to
+RabbitMQ), SPA ns `the-button-web`, routed via api-control-plane registration
+`/the-button` and SSE channel `the-button.counter`.
 Design docs: `specs/products/the-button.md` (product) and `specs/ARCHITECTURE.md`
 (platform); this runbook is self-contained and doesn't require either for on-call
 use. Load/calibration evidence: `iac/docs/load-results-the-button.md`. Data: Redis ns `redis`
@@ -138,10 +140,11 @@ problem (see ButtonRabbitMQDown). Frames stall; counter accounting is
 unaffected.
 
 ### Alert: service down
-- `ButtonServiceDown` — `up{namespace="the-button"}` has no target scraping as up for
-  30s. This namespace holds both the api (`the-button-service`) replicas and the
-  `the-button-publisher` pod, so it only fires on a full namespace outage: clicking
-  (`SubmitClicks`) and the counter are both dead.
+- `ButtonServiceDown` — `up{namespace="the-button",job="the-button-service"}` has no
+  target scraping as up for 30s. This is scoped to the api (`the-button-service`)
+  replicas only: it fires as soon as BOTH api replicas are down, even if the
+  `the-button-publisher` pod is healthy — clicking (`SubmitClicks`), `IssueChallenge`,
+  and `GetCounter` are all dead in that case. It does NOT cover the publisher.
 - A publisher-only death (api still up and scraping fine) does NOT trip this alert —
   that gap is covered by `ButtonTickFrozen` / `ButtonTickFrozenCritical` instead (see
   previous section). If the counter looks frozen but this alert is silent, check that

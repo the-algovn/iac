@@ -69,12 +69,20 @@ spec:
             runbook: 'iac/docs/runbooks/the-button.md#alert-acp-memory--sse-clients'
     - name: the-button-counter
       rules:
+        # Scoped to job="the-button-service" (the api) only — the namespace
+        # also holds the single-replica publisher, whose `up` series stays 1
+        # even if both api replicas die, so a namespace-wide sum() would
+        # never fire on an api-only outage. absent() is required alongside
+        # the scoped sum()==0: when the api's targets vanish entirely the
+        # scoped sum() returns EMPTY, not 0 — same reasoning as
+        # ButtonTickFrozen's absent() guard below. Publisher-only death is
+        # NOT covered here; that's ButtonTickFrozen's job.
         - alert: ButtonServiceDown
-          expr: sum(up{namespace="the-button"}) == 0
+          expr: sum(up{namespace="the-button",job="the-button-service"}) == 0 or absent(up{namespace="the-button",job="the-button-service"}) == 1
           for: 30s
           labels: { severity: critical }
           annotations:
-            summary: 'the-button namespace has no up target for 30s — api and publisher both down; clicking and the counter are dead'
+            summary: 'the-button-service (api) has no up target for 30s — SubmitClicks/IssueChallenge/GetCounter are dead; does not cover the publisher, see ButtonTickFrozen'
             runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
         # Freshness signal (the-button-service internal/publisher/metrics.go's
         # the_button_last_poll_unixtime), set on every successful SUM poll by
@@ -99,7 +107,7 @@ spec:
             summary: 'no successful counter poll in 30s+ for 2m — counter is frozen, page now'
             runbook: 'iac/docs/runbooks/the-button.md#alert-broadcast-frozen--publish-failures'
         - alert: ButtonPublishFailures
-          expr: increase(the_button_publish_failures_total[5m]) > 0
+          expr: max(increase(the_button_publish_failures_total[5m])) > 0
           for: 5m
           labels: { severity: warning }
           annotations:
