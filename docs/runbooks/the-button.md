@@ -232,10 +232,67 @@ The Job keeps a fixed name (`the-button-migrate`) and
 only when the next sync starts, so the last run's logs survive for inspection
 in between syncs, not indefinitely.
 
-**Rollback:** `goose down` reverses the last migration. Every migration ships a
-tested `-- +goose Down`; 002's Down recreates `counter_outbox` precisely so a
-rollback to a pre-split image has a table to write to. There is no automated
-down-path — run it deliberately with the migrate binary pointed at the database.
+**Rollback:** the migrate binary supports `-down`, which reverses exactly ONE
+migration per run — the most recently applied one, not "back to version N."
+Every migration ships a `-- +goose Down`; 002's Down recreates `counter_outbox`
+precisely so a rollback to a pre-split image (whose write path INSERTs there on
+every accepted batch) has a table to write to. This is exercised by
+`TestMigrate_DownRecreatesCounterOutbox`
+(`internal/store/store_integration_test.go` in the-button-service) — it asserts
+the table exists again and that `goose_db_version` reflects the reversal.
+
+The runtime image is distroless (no shell, no goose CLI), so there is no
+`kubectl exec` path. Run it as a one-off Job from the same image with the
+command overridden, then delete it. Reuse the `app: the-button-migrate` pod
+label so it inherits the existing `the-button-migrate` NetworkPolicy (egress
+limited to Postgres + DNS) instead of running unrestricted — this namespace has
+no default-deny, so a pod with any other label gets no NetworkPolicy applied to
+it at all:
+
+    IMAGE=$(kubectl --context algovn-remote -n the-button get job the-button-migrate \
+      -o jsonpath='{.spec.template.spec.containers[0].image}')
+
+    cat > /tmp/the-button-migrate-down.yaml <<EOF
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: the-button-migrate-down
+      namespace: the-button
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels: { app: the-button-migrate }
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: migrate-down
+              image: $IMAGE
+              command: ["/the-button-migrate", "-down"]
+              env:
+                - name: PG_URL
+                  valueFrom: { secretKeyRef: { name: pg-the-button, key: uri } }
+          imagePullSecrets:
+            - name: registry-creds
+    EOF
+
+    kubectl --context algovn-remote -n the-button apply -f /tmp/the-button-migrate-down.yaml
+    kubectl --context algovn-remote -n the-button logs job/the-button-migrate-down -f
+    kubectl --context algovn-remote -n the-button delete -f /tmp/the-button-migrate-down.yaml
+
+Job name (`the-button-migrate-down`) is deliberately different from the
+PreSync hook's fixed name (`the-button-migrate`) so this doesn't collide with
+or get pruned by Argo's `BeforeHookCreation` policy on the next sync. To
+reverse more than one migration, repeat the apply/logs/delete cycle — each run
+only reverses one.
+
+(A `kubectl run --overrides=...` one-liner was considered but rejected: its
+`--overrides` JSON patches onto the container `kubectl run` auto-generates,
+which is named after the pod. Getting that name wrong doesn't error — it
+silently adds a SECOND container instead of replacing the first, and that
+second container would run the image's default ENTRYPOINT [`the-button-service`]
+rather than the migrate binary. This manifest avoids that failure mode by
+being a complete, single-container Job instead of a patch.)
 
 **Fresh-install caveat:** PreSync hooks run before ALL normal resources,
 including the ExternalSecret that produces `pg-the-button`. On an existing
@@ -306,6 +363,6 @@ The `counter_outbox` DROP was performed by **migration 002**
 (`internal/db/migrations/002_drop_counter_outbox.sql`), applied by the PreSync
 Job — it is not a manual step. The Redis key was still removed by hand:
 
-    kubectl --context algovn-remote -n redis exec -it <redis-pod> -- redis-cli DEL counter:global
+    kubectl --context algovn-remote -n redis exec redis-0 -- redis-cli -a "$REDIS_PASS" DEL counter:global
 
 `applied:*` marker keys expired on their own (1h TTL).
