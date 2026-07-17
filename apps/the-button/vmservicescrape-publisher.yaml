@@ -1,0 +1,11 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: the-button-publisher
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [the-button] }
+  selector:
+    matchLabels: { app: the-button-publisher }
+  endpoints:
+    - port: metrics

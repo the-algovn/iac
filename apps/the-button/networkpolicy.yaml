@@ -7,11 +7,11 @@ spec:
   # the-button-service trusts an UNVERIFIED base64 decode of the gateway's JWT
   # for identity (it assumes only api-control-plane can reach it) — this
   # policy makes that assumption enforced instead of merely convention.
-  # Ingress-only: egress (Postgres/Redis/RabbitMQ/JWKS) is intentionally left
-  # unrestricted, out of scope for this fix.
+  # Egress (2026-07-17 api-publisher split): the api needs exactly Postgres,
+  # Redis, and DNS — it no longer publishes to RabbitMQ.
   podSelector:
     matchLabels: { app: the-button-service }
-  policyTypes: [Ingress]
+  policyTypes: [Ingress, Egress]
   ingress:
     # gRPC: api-control-plane only.
     - from:
@@ -29,3 +29,62 @@ spec:
             matchLabels: { app.kubernetes.io/name: vmagent }
       ports:
         - { port: 9091, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: postgres }
+      ports:
+        - { port: 5432, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: redis }
+      ports:
+        - { port: 6379, protocol: TCP }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: the-button-publisher
+  namespace: the-button
+spec:
+  # Publisher: no ingress except metrics scrape; egress to Postgres (SUM
+  # poll), Redis (milestones/difficulty), RabbitMQ (frame publish), DNS.
+  podSelector:
+    matchLabels: { app: the-button-publisher }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: vmagent }
+      ports:
+        - { port: 9091, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: postgres }
+      ports:
+        - { port: 5432, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: redis }
+      ports:
+        - { port: 6379, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: rabbitmq }
+      ports:
+        - { port: 5672, protocol: TCP }

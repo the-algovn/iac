@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: the-button-publisher
+  namespace: the-button
+spec:
+  # Single replica by design: worst-case outage freezes the live counter
+  # until reschedule (SSE stays connected via acp; GetCounter unaffected) —
+  # accepted trade per the 2026-07-17 api-publisher split spec. maxSurge
+  # rollout briefly runs two publishers: duplicate counter frames are
+  # cosmetic and milestone claims dedupe via Redis SETNX.
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: the-button-publisher }
+  template:
+    metadata:
+      labels: { app: the-button-publisher }
+    spec:
+      containers:
+        - name: the-button-publisher
+          image: ghcr.io/the-algovn/the-button-service:main
+          command: ["/the-button-publisher"]
+          ports:
+            - { containerPort: 9091, name: metrics }
+          env:
+            - { name: METRICS_ADDR, value: ":9091" }
+            - name: PG_URL
+              valueFrom: { secretKeyRef: { name: pg-the-button, key: uri } }
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: redis-creds, key: url } }
+            - name: AMQP_URL
+              valueFrom: { secretKeyRef: { name: amqp-creds, key: url } }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 9091 }
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9091 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      imagePullSecrets:
+        - name: registry-creds
