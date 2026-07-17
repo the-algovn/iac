@@ -203,6 +203,47 @@ dump/restore to a larger volume before critical fires, not after.
   secret does not restart pods:
   `kubectl --context algovn-remote -n the-button rollout restart deploy/the-button-service`.
 
+## Schema changes
+
+Schema is owned by goose migrations in `the-button-service`
+(`internal/db/migrations/`), applied by an Argo **PreSync hook Job** running the
+`/the-button-migrate` binary. The service never touches schema at startup, and
+nothing is applied by hand.
+
+**To add a migration:** create `internal/db/migrations/NNN_description.sql` with
+`-- +goose Up` / `-- +goose Down` sections, run `sqlc generate` (sqlc reads the
+migrations directory — it is the single source of truth, there is no
+schema.sql), commit, and deploy normally. The Job runs on every sync; with no
+pending migrations it logs `no pending migrations` and exits 0.
+
+**The expand/contract rule:** PreSync runs migrations BEFORE the new pods roll,
+so the still-running old version must tolerate the new schema. Add columns
+nullable, backfill, and only drop in a LATER release. Dropping something the
+running version still reads takes the service down.
+
+**A failed Job blocks the sync** (that is the point — pods never roll against a
+half-migrated database). To diagnose:
+
+    kubectl --context algovn-remote -n the-button get jobs
+    kubectl --context algovn-remote -n the-button logs job/the-button-migrate
+
+The Job keeps a fixed name (`the-button-migrate`) and
+`hook-delete-policy: BeforeHookCreation` — Argo deletes the previous run's Job
+only when the next sync starts, so the last run's logs survive for inspection
+in between syncs, not indefinitely.
+
+**Rollback:** `goose down` reverses the last migration. Every migration ships a
+tested `-- +goose Down`; 002's Down recreates `counter_outbox` precisely so a
+rollback to a pre-split image has a table to write to. There is no automated
+down-path — run it deliberately with the migrate binary pointed at the database.
+
+**Fresh-install caveat:** PreSync hooks run before ALL normal resources,
+including the ExternalSecret that produces `pg-the-button`. On an existing
+namespace this is a non-issue (the Secret is already there). On a brand-new
+namespace the first sync's Job fails on missing credentials — sync again once
+the secrets exist. Not worth sync-wave machinery for a once-per-environment
+event.
+
 ## Known limits — stated honestly
 
 - **Single-node reality: node loss takes the whole product (and login) down, not
@@ -261,13 +302,10 @@ dump/restore to a larger volume before critical fires, not after.
 
 ## 2026-07-17 outbox removal — one-time cleanup (done during rollout)
 
-After the api/publisher split rolled out, the orphaned outbox table and
-Redis counter key were removed manually (the Go schema deliberately never
-DROPs — old pods still wrote to the table during the rolling update):
+The `counter_outbox` DROP was performed by **migration 002**
+(`internal/db/migrations/002_drop_counter_outbox.sql`), applied by the PreSync
+Job — it is not a manual step. The Redis key was still removed by hand:
 
-    kubectl --context algovn-remote -n postgres exec -it <cnpg-primary-pod> -- \
-      psql -U postgres -d the_button -c 'DROP TABLE IF EXISTS counter_outbox;'
-    kubectl --context algovn-remote -n redis exec -it <redis-pod> -- \
-      redis-cli -a "$REDIS_PASSWORD" DEL counter:global
+    kubectl --context algovn-remote -n redis exec -it <redis-pod> -- redis-cli DEL counter:global
 
 `applied:*` marker keys expired on their own (1h TTL).

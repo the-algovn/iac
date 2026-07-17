@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: the-button-migrate
+  namespace: the-button
+  annotations:
+    # PreSync: migrations land BEFORE the new pods roll. That ordering is why
+    # every migration must stay backward-compatible with the version still
+    # serving traffic (expand/contract) — see the 2026-07-17 migrations spec.
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels: { app: the-button-migrate }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/the-algovn/the-button-service:main
+          command: ["/the-button-migrate"]
+          env:
+            - name: PG_URL
+              valueFrom: { secretKeyRef: { name: pg-the-button, key: uri } }
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      imagePullSecrets:
+        - name: registry-creds

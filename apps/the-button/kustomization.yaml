@@ -9,6 +9,7 @@ resources:
   - pg-the-button-external.yaml
   - deployment.yaml
   - deployment-publisher.yaml
+  - migrate-job.yaml
   - poddisruptionbudget.yaml
   - networkpolicy.yaml
   - service.yaml

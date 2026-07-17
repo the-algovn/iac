@@ -88,3 +88,30 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: rabbitmq }
       ports:
         - { port: 5672, protocol: TCP }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: the-button-migrate
+  namespace: the-button
+spec:
+  # The PreSync migration Job: egress to Postgres + DNS only, no ingress.
+  # There is no default-deny in this namespace, so the Job would reach Postgres
+  # without this policy — it exists because every other pod here is locked down
+  # and an unrestricted pod would be an inconsistency, not a feature.
+  podSelector:
+    matchLabels: { app: the-button-migrate }
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: postgres }
+      ports:
+        - { port: 5432, protocol: TCP }
