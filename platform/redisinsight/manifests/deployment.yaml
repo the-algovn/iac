@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redisinsight
+  namespace: redisinsight
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: redisinsight }
+  template:
+    metadata:
+      labels: { app: redisinsight }
+    spec:
+      containers:
+        - name: redisinsight
+          image: docker.io/redis/redisinsight:3.6.0
+          ports:
+            - { containerPort: 5540, name: http }
+          env:
+            - { name: RI_APP_PORT, value: "5540" }
+            - { name: RI_APP_HOST, value: "0.0.0.0" }
+            # The connection is pre-seeded from env on EVERY start, which is what
+            # makes /data disposable (emptyDir below, no PVC on a backup-less
+            # cluster). Redis Insight drops env-added connections on a restart
+            # without these vars — that is fine here precisely because they are
+            # always set.
+            - { name: RI_REDIS_HOST, value: "redis.redis.svc.cluster.local" }
+            - { name: RI_REDIS_PORT, value: "6379" }
+            - { name: RI_REDIS_ALIAS, value: "algovn-prod" }
+            - name: RI_REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: redis-auth, key: password } }
+            # No add/edit/delete of connections: this UI can only ever reach the
+            # one Redis it was given.
+            - { name: RI_DATABASE_MANAGEMENT, value: "false" }
+          readinessProbe:
+            httpGet: { path: /, port: 5540 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 5540 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: data
+          emptyDir: {}
