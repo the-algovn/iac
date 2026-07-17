@@ -24,7 +24,10 @@ copy, Argo admin pw, zitadel-iam-admin-sa-pat.
    (bootstrap admin password: bao `algovn/zitadel/bootstrap-admin`), incl. §11:
    new OIDC client ids → update platform/monitoring/values.yaml +
    platform/argocd/patches/oidc-cm.yaml, write the new grafana client secret to bao
-   `algovn/monitoring/grafana-oauth`.
+   `algovn/monitoring/grafana-oauth`. Also incl. §12: new `internal-tool` /
+   `redisinsight` client id → update `--client-id` in
+   platform/redisinsight/manifests/oauth2-proxy-deployment.yaml, write the new
+   client secret to bao `algovn/redisinsight/oauth`.
 9. Re-check Cloudflare Access apps (docs/runbooks/cloudflare-access.md).
 10. Stateful volumes live on algovn-w1; a full rebuild recreates the `pg` cluster
     EMPTY — see docs/runbooks/postgres.md.

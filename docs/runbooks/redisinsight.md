@@ -11,7 +11,9 @@ Browse/write/inspect UI for the platform Redis. Design: archived spec
 Redis Insight has **no authentication of its own**. Two independent gates protect it:
 
 1. **Zitadel** — project `internal-tool`, single role `admin`, "Check authorization on
-   Authentication" ON. No role ⇒ no token (`Errors.User.ProjectRequired`).
+   Authentication" ON (also "Check for Project on Authentication" ON — see
+   docs/runbooks/zitadel.md item 12 for the full reproduction detail). No role ⇒ no
+   token (`Errors.User.ProjectRequired`).
 2. **oauth2-proxy** — `--authenticated-emails-file` (ConfigMap `oauth2-proxy-emails`).
 
 NetworkPolicy makes oauth2-proxy the only route to :5540; without it, any pod in the
@@ -45,6 +47,15 @@ Both gates, in this order: Zitadel → `internal-tool` → Authorizations → Ne
 `admin`; then add their email to `platform/redisinsight/manifests/emails-configmap.yaml`
 and commit. Two edits is the intended friction for a prod Redis write console.
 
+## Remove a person
+
+Delete their line from `platform/redisinsight/manifests/emails-configmap.yaml` and
+commit. oauth2-proxy re-validates against the hot-reloaded
+`--authenticated-emails-file` on every request, so this kills even an already-logged-in
+session within the kubelet ConfigMap propagation window (~1 min) — no pod restart
+needed. For defence in depth, also remove their `admin` authorization on
+`internal-tool` in Zitadel.
+
 ## Break-glass
 
 Zitadel down, or the UI broken? The UI is a convenience, not the access path:
@@ -64,11 +75,28 @@ once). Write it to bao and force ESO to resync, then restart the proxy:
 
 Remove the force-sync annotation (second command) or Argo reports drift.
 
+The same secret carries a `cookie-secret` field, which has its own recipe — do NOT
+reuse the `openssl rand -base64 24` pattern from postgres.md here:
+
+    openssl rand -base64 32 | tr -- '+/' '-_'
+
+oauth2-proxy requires the *decoded* cookie secret to be 16, 24, or 32 bytes, and it
+decodes with **base64url**, not standard base64. Standard `openssl rand -base64`
+output has a ~74% chance of containing a `+` or `/`, which base64url rejects —
+oauth2-proxy then falls back to treating the raw 44-char string as bytes and
+crashloops with `cookie_secret must be 16, 24, or 32 bytes to create an AES cipher,
+but is 44 bytes`. The `tr` above remaps to the base64url alphabet so the 32 raw
+bytes decode cleanly.
+
 ## Recreating the app
 
 Recreation issues a **new client_id** → update `--client-id` in
-`oauth2-proxy-deployment.yaml` (quoted — an unquoted 18-digit id gets mangled to
-3.8e+17 ⇒ `Errors.App.NotFound`) and write the new secret to bao.
+`oauth2-proxy-deployment.yaml` and write the new secret to bao. No quoting needed
+here: `--client-id=...` is a flag *argument*, which YAML already parses as a plain
+string. The float64-mangling gotcha (18-digit id → `3.8e+17` ⇒
+`Errors.App.NotFound`) is a bare-Helm-scalar-value problem (see
+`platform/monitoring/values.yaml`), not a flag-arg one — see the manifest's own
+comment.
 
 ## Notes
 
@@ -87,3 +115,5 @@ Recreation issues a **new client_id** → update `--client-id` in
 - `--upstream-timeout=60s` — Redis Insight requires >30s; oauth2-proxy defaults to 30s.
 - Redis Insight can `FLUSHALL` the-button's `noeviction` keys. There is no technical
   guard — that is inherent to a write console. Recovery is the Postgres outbox.
+- The Profiler tab runs `MONITOR`, which materially degrades live Redis throughput —
+  same hazard class as `FLUSHALL`, but easy to reach for since it looks read-only.

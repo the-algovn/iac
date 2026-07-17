@@ -5,18 +5,22 @@ Team domain: `the-thing-universe.cloudflareaccess.com`. Owner email: `minhducle.
 Current protected hosts (verified 2026-07-16): `pve.algovn.com`, `ssh-pve.algovn.com`
 (Proxmox host tunnel — MUST stay gated, see remote-access.md), `ssh-cp.algovn.com`,
 `ssh-w1.algovn.com`, `k8s.algovn.com`. Admin UIs use Zitadel SSO instead
-(grafana, argocd — clients recreated 2026-07-16 after the rebuild).
+(grafana, argocd — clients recreated 2026-07-16 after the rebuild — and
+`redis.algovn.com`, see docs/runbooks/redisinsight.md).
 
 ## Recreate the policies
 Template — policy `admin-only`: Action Allow, Include → Emails → `minhducle.dev@gmail.com`;
 identity: One-time PIN (default); session duration 24h.
-No admin-UI apps remain (grafana + argocd use Zitadel SSO, 2026-07-13). The pending
+No admin-UI apps remain (grafana + argocd use Zitadel SSO, 2026-07-13; redis.algovn.com
+likewise uses Zitadel SSO + oauth2-proxy, 2026-07-17 — not Access). The pending
 ssh-pi / ssh-w1 / k8s apps below use this template.
 
 In Cloudflare dashboard: **Zero Trust → Access → Applications → Add an application → Self-hosted**:
 
 `grafana.algovn.com` is NOT Access-protected — it uses Zitadel SSO (grafana-sso spec, 2026-07-13).
 `argocd.algovn.com` is NOT Access-protected — it uses Zitadel SSO (argocd-zitadel-sso spec, 2026-07-13).
+`redis.algovn.com` is NOT Access-protected — it is intentionally gated by
+oauth2-proxy + Zitadel SSO instead (see docs/runbooks/redisinsight.md).
 
 ## Verify
 `curl -s -o /dev/null -w '%{http_code}' https://<host>/` → `302` (redirect to
