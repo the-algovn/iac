@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redisinsight
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/the-algovn/iac.git
+    # TEMPORARY: pulls manifests from the feature branch so each task can
+    # verify against a live sync. Flip to `main` when the branch merges.
+    targetRevision: redisinsight
+    path: platform/redisinsight/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: redisinsight
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+    retry:
+      limit: 5
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }
