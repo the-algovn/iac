@@ -45,10 +45,20 @@ spec:
     matchLabels: { app: oauth2-proxy }
   policyTypes: [Ingress, Egress]
   ingress:
-    # Kong only — the tunnel terminates there.
+    # Kong's GATEWAY pods only — the tunnel terminates there. namespaceSelector and
+    # podSelector are combined in ONE peer (AND); as two list items they would be
+    # OR'd and admit every pod in the cluster. Selector mirrors
+    # platform/kong/manifests/networkpolicy.yaml's kong-proxy-only-cloudflared —
+    # the controller pods share app.kubernetes.io/instance, so name+instance is
+    # what distinguishes the gateway. A namespace-wide allowance would let
+    # kong-controller reach this proxy and forge X-Forwarded-* (oauth2-proxy runs
+    # --reverse-proxy=true), which is the same forgery reasoning that policy already
+    # documents for CF-Connecting-IP.
     - from:
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: kong }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: gateway, app.kubernetes.io/instance: kong }
       ports:
         - { port: 4180, protocol: TCP }
   egress:
