@@ -1,0 +1,85 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redisinsight
+  namespace: redisinsight
+spec:
+  # Redis Insight has NO authentication of its own: anything that can reach
+  # :5540 IS an admin with write access to the-button's noeviction keys
+  # (counter:global, applied:<id>, pow:<id>). oauth2-proxy is the only gate,
+  # and this policy is what makes that enforced rather than conventional —
+  # same reasoning as the-button-service's policy.
+  podSelector:
+    matchLabels: { app: redisinsight }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # oauth2-proxy, in this namespace, and nothing else. No namespaceSelector
+    # means same-namespace.
+    - from:
+        - podSelector:
+            matchLabels: { app: oauth2-proxy }
+      ports:
+        - { port: 5540, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    # Redis and nothing else. This also leaves Redis Insight's telemetry with
+    # no route off-cluster, which is a welcome side effect rather than the goal.
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: redis }
+      ports:
+        - { port: 6379, protocol: TCP }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy
+  namespace: redisinsight
+spec:
+  podSelector:
+    matchLabels: { app: oauth2-proxy }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Kong's GATEWAY pods only — the tunnel terminates there. namespaceSelector and
+    # podSelector are combined in ONE peer (AND); as two list items they would be
+    # OR'd and admit every pod in the cluster. Selector mirrors
+    # platform/kong/manifests/networkpolicy.yaml's kong-proxy-only-cloudflared —
+    # the controller pods share app.kubernetes.io/instance, so name+instance is
+    # what distinguishes the gateway. A namespace-wide allowance would let
+    # kong-controller reach this proxy and forge X-Forwarded-* (oauth2-proxy runs
+    # --reverse-proxy=true), which is the same forgery reasoning that policy already
+    # documents for CF-Connecting-IP.
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kong }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: gateway, app.kubernetes.io/instance: kong }
+      ports:
+        - { port: 4180, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels: { app: redisinsight }
+      ports:
+        - { port: 5540, protocol: TCP }
+    # Zitadel. id.algovn.com resolves to Cloudflare and the issuer URL must stay
+    # public for OIDC discovery to validate, so this egress genuinely leaves the
+    # cluster and comes back through the tunnel — same trade Grafana makes.
+    # RFC1918 is excluded so this cannot become in-cluster lateral movement.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - { port: 443, protocol: TCP }

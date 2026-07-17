@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: redisinsight
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: oauth2-proxy }
+  template:
+    metadata:
+      labels: { app: oauth2-proxy }
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://id.algovn.com
+            # As a flag arg this is already a YAML string — the float64-mangling
+            # gotcha in zitadel.md applies to bare Helm values, not to this form.
+            - --client-id=382147566483079537
+            - --redirect-url=https://redis.algovn.com/oauth2/callback
+            - --upstream=http://redisinsight.redisinsight.svc.cluster.local:5540
+            # Default is 127.0.0.1:4180 — the Service cannot reach that.
+            - --http-address=0.0.0.0:4180
+            # Gate #2. --email-domain is deliberately ABSENT: oauth2-proxy's
+            # NewValidator ORs allowed-domains with this file, and "*" sets
+            # allowAll — so --email-domain=* here would silently admit every
+            # authenticated Zitadel user. Setting neither denies everyone
+            # (fails closed); setting only this file is correct.
+            - --authenticated-emails-file=/etc/oauth2-proxy/emails
+            - --scope=openid profile email
+            - --cookie-secure=true
+            - --skip-provider-button=true
+            # Behind Kong + cloudflared: trust X-Forwarded-*.
+            - --reverse-proxy=true
+            # Redis Insight documents that a reverse proxy must allow >30s;
+            # oauth2-proxy's default is exactly 30s.
+            - --upstream-timeout=60s
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: redisinsight-oauth, key: client-secret } }
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom: { secretKeyRef: { name: redisinsight-oauth, key: cookie-secret } }
+          ports:
+            - { containerPort: 4180, name: http }
+          readinessProbe:
+            httpGet: { path: /ping, port: 4180 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: { path: /ping, port: 4180 }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 128Mi }
+          volumeMounts:
+            - { name: emails, mountPath: /etc/oauth2-proxy, readOnly: true }
+      volumes:
+        - name: emails
+          configMap:
+            name: oauth2-proxy-emails

@@ -1,0 +1,22 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: redisinsight-oauth
+  namespace: redisinsight
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: redisinsight-oauth
+    creationPolicy: Owner
+  data:
+    - secretKey: client-secret
+      remoteRef:
+        key: algovn/redisinsight/oauth
+        property: client-secret
+    - secretKey: cookie-secret
+      remoteRef:
+        key: algovn/redisinsight/oauth
+        property: cookie-secret

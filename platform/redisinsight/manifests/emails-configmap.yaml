@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-emails
+  namespace: redisinsight
+data:
+  # Gate #2. Independent of Zitadel's projectRoleCheck (gate #1): this is what
+  # holds if a bare project grant with an empty role list ever slips past
+  # zitadel#9633. Adding a person here is deliberately a commit.
+  emails: |
+    minhducle.dev@gmail.com

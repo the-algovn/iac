@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: redisinsight
+  namespace: redisinsight
+spec:
+  ingressClassName: kong
+  rules:
+    - host: redis.algovn.com
+      http:
+        paths:
+          # Root only. Redis Insight documents that hosting behind a prefix
+          # path is not supported — that is why this is a subdomain.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port: { number: 4180 }
+  tls:
+    - hosts: [redis.algovn.com]
