@@ -9,3 +9,4 @@ resources:
   - demo-service-updater.yaml
   - the-button-updater.yaml
   - the-button-web-updater.yaml
+  - console-updater.yaml

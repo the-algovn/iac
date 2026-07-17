@@ -1,0 +1,22 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: console-updater
+  namespace: argocd
+spec:
+  applicationRefs:
+    - namePattern: console
+      images:
+        - alias: web-console
+          imageName: ghcr.io/the-algovn/web-console:main
+          commonUpdateSettings:
+            updateStrategy: digest
+            pullSecret: pullsecret:argocd/ghcr-creds
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/the-algovn/web-console
+      writeBackConfig:
+        method: git:secret:argocd/git-creds
+        gitConfig:
+          branch: main
+          writeBackTarget: kustomization:.
