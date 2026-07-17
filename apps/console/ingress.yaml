@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-console
+  namespace: console
+spec:
+  ingressClassName: kong
+  rules:
+    - host: algovn.com
+      http:
+        paths:
+          - path: /console
+            pathType: Prefix
+            backend:
+              service:
+                name: web-console
+                port: { number: 80 }
+  tls:
+    - hosts: [algovn.com]
