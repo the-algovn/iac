@@ -9,9 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/the-algovn/iac.git
-    # TEMPORARY: pulls manifests from the feature branch so each task can
-    # verify against a live sync. Flip to `main` when the branch merges.
-    targetRevision: redisinsight
+    targetRevision: main
     path: platform/redisinsight/manifests
   destination:
     server: https://kubernetes.default.svc
