@@ -4,7 +4,9 @@ defaultRule: authenticated
 routes:
   - { method: algovn.button.v1.ButtonService/GetCounter,       verb: GET,  path: /counter,      rule: anonymous }
   - { method: algovn.button.v1.ButtonService/ListAchievements, verb: GET,  path: /achievements, rule: anonymous }
+  - { method: algovn.button.v1.ButtonService/GetLeaderboard,   verb: GET,  path: /leaderboard,  rule: anonymous }
   - { method: algovn.button.v1.ButtonService/IssueChallenge,   verb: POST, path: /challenge,    rule: authenticated }
   - { method: algovn.button.v1.ButtonService/SubmitClicks,     verb: POST, path: /clicks,       rule: authenticated, deadline: 3s }
 channels:
   - { name: the-button.counter, rule: anonymous }
+  - { name: the-button.leaderboard, rule: anonymous }
