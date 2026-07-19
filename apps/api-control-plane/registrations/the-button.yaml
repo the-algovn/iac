@@ -2,11 +2,12 @@ prefix: /the-button
 upstream: dns:///the-button-service.the-button.svc.cluster.local:9090
 defaultRule: authenticated
 routes:
-  - { method: algovn.button.v1.ButtonService/GetCounter,       verb: GET,  path: /counter,      rule: anonymous }
-  - { method: algovn.button.v1.ButtonService/ListAchievements, verb: GET,  path: /achievements, rule: anonymous }
-  - { method: algovn.button.v1.ButtonService/GetLeaderboard,   verb: GET,  path: /leaderboard,  rule: anonymous }
-  - { method: algovn.button.v1.ButtonService/IssueChallenge,   verb: POST, path: /challenge,    rule: authenticated }
-  - { method: algovn.button.v1.ButtonService/SubmitClicks,     verb: POST, path: /clicks,       rule: authenticated, deadline: 3s }
+  - { method: algovn.button.v2.ButtonService/GetCounter,     verb: GET,  path: /counter,      rule: anonymous }
+  - { method: algovn.button.v2.ButtonService/GetLeaderboard, verb: GET,  path: /leaderboard,  rule: anonymous }
+  - { method: algovn.button.v2.ButtonService/GetPlayerState, verb: GET,  path: /player-state, rule: authenticated }
+  - { method: algovn.button.v2.ButtonService/IssueChallenge, verb: POST, path: /challenge,    rule: authenticated }
+  - { method: algovn.button.v2.ButtonService/SubmitClicks,   verb: POST, path: /clicks,       rule: authenticated, deadline: 3s }
 channels:
   - { name: the-button.counter, rule: anonymous }
   - { name: the-button.leaderboard, rule: anonymous }
+  - { name: the-button.user, rule: authenticated, perUser: true }

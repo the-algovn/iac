@@ -28,8 +28,7 @@ spec:
             - { name: CORS_ORIGINS, value: "https://*.algovn.com,https://algovn.com" }
             - { name: GOMEMLIMIT, value: 900MiB }
             - { name: SSE_MAX_CONNS, value: "15000" }
-            - name: AMQP_URL
-              valueFrom: { secretKeyRef: { name: amqp-creds, key: url } }
+            - { name: KAFKA_BROKERS, value: "redpanda.redpanda.svc.cluster.local:9092" }
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
             initialDelaySeconds: 3
