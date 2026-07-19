@@ -20,9 +20,12 @@ spec:
           # Acceptable: Redis is authoritative and Postgres snapshots, so a lost
           # Kafka record is safe-to-drop. Topics are provisioned by a PreSync Job
           # (auto-create off; franz-go never requests it anyway).
-          # Exec-form command: each flag and its value MUST be a separate list
-          # item (no shell word-splitting on embedded spaces).
+          # Invoke via `rpk redpanda start` (the wrapper that understands --mode
+          # /--set/etc.) — a k8s `command:` overrides the image entrypoint, so a
+          # bare `redpanda start` would hit the raw broker binary, which rejects
+          # these flags. Exec-form: each flag and value is a separate list item.
           command:
+            - rpk
             - redpanda
             - start
             - --mode
