@@ -70,55 +70,39 @@ spec:
     - name: the-button-counter
       rules:
         # Scoped to job="the-button-service" (the api) only — the namespace
-        # also holds the single-replica publisher, whose `up` series stays 1
+        # also holds the single-replica worker, whose `up` series stays 1
         # even if both api replicas die, so a namespace-wide sum() would
         # never fire on an api-only outage. absent() is required alongside
         # the scoped sum()==0: when the api's targets vanish entirely the
         # scoped sum() returns EMPTY, not 0 — same reasoning as
-        # ButtonTickFrozen's absent() guard below. Publisher-only death is
-        # NOT covered here; that's ButtonTickFrozen's job.
+        # ButtonWorkerDown's absent() guard below. Worker-only death is
+        # NOT covered here; that's ButtonWorkerDown's job.
         - alert: ButtonServiceDown
           expr: sum(up{namespace="the-button",job="the-button-service"}) == 0 or absent(up{namespace="the-button",job="the-button-service"}) == 1
           for: 30s
           labels: { severity: critical }
           annotations:
-            summary: 'the-button-service (api) has no up target for 30s — SubmitClicks/IssueChallenge/GetCounter are dead; does not cover the publisher, see ButtonTickFrozen'
+            summary: 'the-button-service (api) has no up target for 30s — SubmitClicks/IssueChallenge/GetCounter are dead; does not cover the worker, see ButtonWorkerDown'
             runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
-        # Freshness signal (the-button-service internal/publisher/metrics.go's
-        # the_button_last_poll_unixtime), set on every successful SUM poll by
-        # the single-replica publisher — changed or not, so an idle counter
-        # never reads as frozen. The publisher pod is the ONLY exporter, so
-        # absent() covers the pod not existing (deleted, unschedulable) —
-        # without it a missing pod would silence the alert entirely. Catches
-        # what ButtonServiceDown cannot: api up, publisher dead → SSE clients
-        # keep their connection and stare at a frozen counter.
-        - alert: ButtonTickFrozen
-          expr: (time() - max(the_button_last_poll_unixtime) > 30) or absent(the_button_last_poll_unixtime) == 1
+        # Worker replaces the retired publisher: replicas:1 by design (the
+        # snapshot loop + cold-start Restore are single-flighted). Absence of
+        # its `up` target means both Kafka consumer groups and the
+        # counter/leaderboard tick loops are dead — SSE clients keep their
+        # connection but stare at a frozen counter/leaderboard, the same
+        # failure mode the old publisher-down freshness check caught.
+        - alert: ButtonWorkerDown
+          expr: sum(up{namespace="the-button",job="the-button-worker"}) == 0 or absent(up{namespace="the-button",job="the-button-worker"}) == 1
           for: 1m
           labels: { severity: warning }
           annotations:
-            summary: 'no successful counter poll in 30s+ for 1m — publisher dead or Postgres unreadable; live counter is frozen for SSE viewers'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-broadcast-frozen--publish-failures'
-        - alert: ButtonTickFrozenCritical
-          expr: (time() - max(the_button_last_poll_unixtime) > 30) or absent(the_button_last_poll_unixtime) == 1
-          for: 2m
-          labels: { severity: critical }
-          annotations:
-            summary: 'no successful counter poll in 30s+ for 2m — counter is frozen, page now'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-broadcast-frozen--publish-failures'
-        - alert: ButtonPublishFailures
-          expr: max(increase(the_button_publish_failures_total[5m])) > 0
-          for: 5m
-          labels: { severity: warning }
-          annotations:
-            summary: 'publisher polls are healthy but AMQP publishes are failing — SSE counter frames stalling while GetCounter stays correct; check RabbitMQ'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-broadcast-frozen--publish-failures'
+            summary: 'the-button-worker has no up target for 1m — Kafka consumers and counter/leaderboard tick loops are dead; SSE counter/leaderboard is frozen and click events buffer in the clicks topic (dropped if the worker stays down past its ~5m retention). Redis stays authoritative for reads.'
+            runbook: 'iac/docs/runbooks/the-button.md#alert-worker-down'
     - name: the-button-dependencies
       rules:
-        # Redis and RabbitMQ both being outside the-button's own namespace,
-        # ButtonServiceDown (up{namespace="the-button"}) cannot see either
-        # going down — the service degrades (fails closed on Redis loss;
-        # loses SSE counter/milestone publishes on RabbitMQ loss) while still
+        # Redis being outside the-button's own namespace, ButtonServiceDown
+        # (up{namespace="the-button"}) cannot see it going down — the
+        # service degrades (fails closed: PoW difficulty (pow:L), throttle
+        # (pow:min_interval), and burn keys all live in Redis) while still
         # scraping as up itself.
         - alert: ButtonRedisDown
           expr: min(up{namespace="redis"}) == 0 or absent(up{namespace="redis"})
@@ -126,13 +110,6 @@ spec:
           labels: { severity: critical }
           annotations:
             summary: 'redis target down/absent for 1m — the-button fails closed (rejects batches: PoW difficulty (pow:L), throttle (pow:min_interval), and burn keys all live in Redis; the counter itself is unaffected, Postgres SUM is its only truth)'
-            runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
-        - alert: ButtonRabbitMQDown
-          expr: min(up{namespace="rabbitmq"}) == 0 or absent(up{namespace="rabbitmq"})
-          for: 1m
-          labels: { severity: warning }
-          annotations:
-            summary: 'rabbitmq target down/absent for 1m — counter/milestone SSE publishes stop (clicks still commit durably to Postgres, the only counter truth — that path does not touch RabbitMQ)'
             runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
         # See platform/redis/manifests/statefulset.yaml: maxmemory 400mb,
         # noeviction. redis_memory_{used,max}_bytes come from redis_exporter

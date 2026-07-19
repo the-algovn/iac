@@ -64,7 +64,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 ```
 
 Expected: every command returns the annotated result. If SSE stalls, check Kong response
-buffering annotation and `kubectl -n api-control-plane logs` for `rabbitmq connected`.
+buffering annotation and `kubectl -n api-control-plane logs` for `kafka connected`.
 
 ## Operational notes
 
@@ -73,9 +73,4 @@ buffering annotation and `kubectl -n api-control-plane logs` for `rabbitmq conne
   keeps the last good config and increments `acp_config_reload_errors_total`.
 - **New upstream after deploy** — descriptors retry every 30s; a spike in
   `acp_requests_total{code="502"}` means the upstream is down or lacks reflection.
-- **RabbitMQ credential rotation** — the default user is only created on first boot; to
-  rotate: `kubectl -n rabbitmq exec rabbitmq-0 -- rabbitmqctl change_password events '<new>'`,
-  then update the shared OpenBao entry `secret/algovn/shared/amqp-events` — both the
-  `api-control-plane` and `demo-service` ExternalSecrets reference it, so External
-  Secrets Operator propagates the new value (procedure: `docs/runbooks/secrets.md`).
 - **Metrics** — `acp_*` series in VictoriaMetrics; SSE gauge is `acp_sse_clients`.

@@ -18,9 +18,6 @@ spec:
           ports:
             - { containerPort: 9090, name: grpc }
             - { containerPort: 9091, name: metrics }
-          env:
-            - name: AMQP_URL
-              valueFrom: { secretKeyRef: { name: amqp-creds, key: url } }
           readinessProbe:
             grpc: { port: 9090 }
             initialDelaySeconds: 5

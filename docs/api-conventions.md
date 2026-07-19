@@ -45,13 +45,13 @@ review of registrations/*.yaml IS the boundary — there are no NetworkPolicies.
 Review upstream addresses accordingly.
 
 ## Realtime push (shared mechanic)
-Publish JSON to RabbitMQ topic exchange `events`, routing key = channel name;
-body = exactly what browsers receive. Browsers: `new EventSource
+Publish JSON to a Kafka (Redpanda) topic named after the channel; body =
+exactly what browsers receive. Browsers: `new EventSource
 ('https://api.algovn.com/events/<channel>')`. No replay: snapshots or
-fire-and-forget only. Broker creds: add an
-ExternalSecret in your namespace referencing the shared OpenBao entry
-`secret/algovn/shared/amqp-events` (procedure: docs/runbooks/secrets.md). Go publish example: see `cmd/demo-service/main.go` (newPublisher)
-in the api-control-plane repo.
+fire-and-forget only. Broker address: the `KAFKA_BROKERS` env literal
+(`redpanda.redpanda.svc.cluster.local:9092`) — not secret, no ExternalSecret
+needed. See `the-button-service`/`the-button-worker` for a working
+producer/consumer example.
 
 v1 limitation: native EventSource cannot send an Authorization header, so
 browser-consumed channels must be `anonymous`. Token-gated channels need a

@@ -1,10 +1,11 @@
 # the-button (algovn.com/the-button)
 
 Live global click counter; PoW-gated. Service ns `the-button` (`the-button-service`,
-2 replicas, gRPC :9090 + metrics :9091, and `the-button-publisher`, single replica,
-polls Postgres `SUM(user_clicks)` every 1s and publishes counter/milestone frames to
-RabbitMQ), SPA ns `the-button-web`, routed via api-control-plane registration
-`/the-button` and SSE channel `the-button.counter`.
+2 replicas, gRPC :9090 + metrics :9091, producing click events to Kafka (Redpanda,
+ns `redpanda`), and `the-button-worker`, single replica, consuming those events to
+maintain the counter/leaderboard and publish frames for acp's SSE hub), SPA ns
+`the-button-web`, routed via api-control-plane registration `/the-button` and SSE
+channel `the-button.counter`.
 Design docs: `specs/products/the-button.md` (product) and `specs/ARCHITECTURE.md`
 (platform); this runbook is self-contained and doesn't require either for on-call
 use. Load/calibration evidence: `iac/docs/load-results-the-button.md`. Data: Redis ns `redis`
@@ -30,7 +31,7 @@ REDIS_PASS=$(kubectl --context algovn-remote -n redis get secret redis-auth -o j
    kubectl --context algovn-remote -n redis exec redis-0 -- redis-cli -a "$REDIS_PASS" SET pow:min_interval 10
    kubectl --context algovn-remote -n redis exec redis-0 -- redis-cli -a "$REDIS_PASS" SET pow:L 16
    ```
-   ⚠️ The publisher (single replica) recomputes both keys every ~1s from an EWMA of
+   ⚠️ The worker (single replica) recomputes both keys every ~1s from an EWMA of
    accepted-submit rate. A manual `SET` is overwritten within ~1s UNLESS real load
    already keeps the controller pinned there itself — treat this as a nudge to
    confirm the controller's own ceiling, not a durable latch. For a durable clamp use
@@ -65,7 +66,7 @@ REDIS_PASS=$(kubectl --context algovn-remote -n redis get secret redis-auth -o j
    `SSE_MAX_CONNS`) instead. Restarting/scaling `the-button-service` does not drop
    SSE (that path is entirely acp+cloudflared); each api replica polls Postgres
    independently for its own `GetCounter` cache, so there is no leadership to fail
-   over. `the-button-publisher` (the separate single-replica broadcaster) is
+   over. `the-button-worker` (the separate single-replica consumer/broadcaster) is
    unaffected by scaling `the-button-service` either way.
 
 ## What each alert means
@@ -112,48 +113,46 @@ First three checks:
 3. Apply knob 2 (lower `SSE_MAX_CONNS`) first; scale acp (knob 3) if RSS stays high
    after the cap drops.
 
-### Alert: broadcast frozen / publish failures
+### Alert: worker down
 
-Since the 2026-07-17 api-publisher split there is no outbox and no Redis
-counter: Postgres SUM(user_clicks) is the only counter truth and a
-single-replica publisher Deployment (`the-button-publisher`) polls it every
-second, publishing frames to RabbitMQ for acp's SSE hub. **The counter
-cannot drift by construction** — there is nothing to heal and no divergence
-to watch.
+Redis (`counter:total`) is the authoritative counter; Postgres holds a
+periodic snapshot for durability. `the-button-service`
+produces click events to Kafka (Redpanda); the single-replica
+`the-button-worker` Deployment consumes them to maintain the
+counter/leaderboard and drive SSE frames for acp's hub. **The counter cannot
+drift by construction** — there is nothing to heal and no divergence to
+watch.
 
-**ButtonTickFrozen / ButtonTickFrozenCritical** — the publisher has not
-completed a successful poll in 30s+ (or its metric is absent entirely: pod
-deleted/unschedulable). Effect: SSE viewers see a frozen live counter (their
-connection stays open through acp, so the web client's poll fallback does
-NOT kick in); page loads / GetCounter stay correct via the api's own cache.
+**ButtonWorkerDown** — `up{namespace="the-button",job="the-button-worker"}`
+has no target scraping as up for 1m (or is absent entirely: pod
+deleted/unschedulable). Effect: SSE viewers see a frozen live
+counter/leaderboard (their connection stays open through acp, so the web
+client's poll fallback does NOT kick in); page loads / GetCounter stay
+correct via the api's own cache; clicks still commit durably to Postgres.
 Diagnose:
 
-    kubectl --context algovn-remote -n the-button get pods -l app=the-button-publisher
-    kubectl --context algovn-remote -n the-button logs deploy/the-button-publisher --tail=50
+    kubectl --context algovn-remote -n the-button get pods -l app=the-button-worker
+    kubectl --context algovn-remote -n the-button logs deploy/the-button-worker --tail=50
 
 - Pod crash/restart: k8s self-heals in seconds; node loss: reschedule can
   take ~5min — accepted single-replica trade.
-- Pod healthy but polls failing: look for "counter poll failed" → Postgres
-  problem; check the postgres namespace.
-
-**ButtonPublishFailures** — polls healthy, AMQP publishes failing: RabbitMQ
-problem (see ButtonRabbitMQDown). Frames stall; counter accounting is
-unaffected.
+- Pod healthy but consumers stuck: check Kafka (Redpanda) reachability and
+  consumer-group lag from ns `redpanda`.
 
 ### Alert: service down
 - `ButtonServiceDown` — `up{namespace="the-button",job="the-button-service"}` has no
   target scraping as up for 30s. This is scoped to the api (`the-button-service`)
   replicas only: it fires as soon as BOTH api replicas are down, even if the
-  `the-button-publisher` pod is healthy — clicking (`SubmitClicks`), `IssueChallenge`,
-  and `GetCounter` are all dead in that case. It does NOT cover the publisher.
-- A publisher-only death (api still up and scraping fine) does NOT trip this alert —
-  that gap is covered by `ButtonTickFrozen` / `ButtonTickFrozenCritical` instead (see
-  previous section). If the counter looks frozen but this alert is silent, check that
-  alert rather than trusting this one's absence.
+  `the-button-worker` pod is healthy — clicking (`SubmitClicks`), `IssueChallenge`,
+  and `GetCounter` are all dead in that case. It does NOT cover the worker.
+- A worker-only death (api still up and scraping fine) does NOT trip this alert —
+  that gap is covered by `ButtonWorkerDown` instead (see previous section). If the
+  counter looks frozen but this alert is silent, check that alert rather than
+  trusting this one's absence.
 
 First three checks:
 1. `kubectl --context algovn-remote -n the-button get pods` — which pods are down:
-   api (`the-button-service`) replicas, `the-button-publisher`, or both?
+   api (`the-button-service`) replicas, `the-button-worker`, or both?
 2. `curl -s https://api.algovn.com/the-button/algovn.button.v1.ButtonService/GetCounter -d '{}'`
    — does it respond at all (gRPC reachable through the gateway)?
 3. Postgres reachability from the affected pod(s) — a downed Postgres can starve
@@ -364,16 +363,16 @@ event.
 ## Known limits — stated honestly
 
 - **Single-node reality: node loss takes the whole product (and login) down, not
-  just a pod.** The api (`the-button-service`) replicas, `the-button-publisher`, AND
+  just a pod.** The api (`the-button-service`) replicas, `the-button-worker`, AND
   the Postgres primary (`pg-1`) all run on `algovn-w1` — the cluster's only
   schedulable worker (the control-plane VM `algovn` doesn't schedule these
   workloads). A pod crash/restart self-heals in seconds (k8s reschedules on the same
   node); losing `algovn-w1` itself is a different story — it takes out
-  the-button-service, the-button-publisher, and Postgres (and therefore Zitadel/login,
+  the-button-service, the-button-worker, and Postgres (and therefore Zitadel/login,
   which shares the CNPG cluster) simultaneously, with no automatic failover to
   another node because there isn't one yet. The topologySpreadConstraints added to
   `apps/the-button/deployment.yaml` is a preference that only takes effect once a
-  second amd64 worker joins — it cannot help `the-button-publisher` regardless,
+  second amd64 worker joins — it cannot help `the-button-worker` regardless,
   since that Deployment is single-replica by design.
 - **10,000 concurrent users is the target. It has never been reached. 5,000 is the
   only number proven to hold.** Three ramps (2026-07-14) tell a consistent story:
@@ -413,9 +412,9 @@ event.
   Restarting `the-button-service` does **not** drop SSE (0 disruption observed) — SSE
   lives entirely in acp+cloudflared, and each api replica polls Postgres
   independently for its own `GetCounter` cache, so there's no leadership to fail
-  over. Restarting/losing `the-button-publisher` does briefly freeze the live counter
-  for SSE viewers until the replacement pod's next successful poll — see
-  `ButtonTickFrozen`.
+  over. Restarting/losing `the-button-worker` does briefly freeze the live counter
+  for SSE viewers until the replacement pod resumes consuming — see
+  `ButtonWorkerDown`.
 
 ## 2026-07-17 outbox removal — one-time cleanup (done during rollout)
 
