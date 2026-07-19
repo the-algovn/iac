@@ -3,20 +3,19 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - registry-creds-external.yaml
-  - amqp-creds-external.yaml
   - redis-creds-external.yaml
   - pow-secret-external.yaml
   - pg-the-button-external.yaml
   - deployment.yaml
-  - deployment-publisher.yaml
+  - deployment-worker.yaml
   - migrate-job.yaml
   - topics-job.yaml
   - poddisruptionbudget.yaml
   - networkpolicy.yaml
   - service.yaml
-  - service-publisher.yaml
+  - service-worker.yaml
   - vmservicescrape.yaml
-  - vmservicescrape-publisher.yaml
+  - vmservicescrape-worker.yaml
 images:
   - name: ghcr.io/the-algovn/the-button-service
     newName: ghcr.io/the-algovn/the-button-service

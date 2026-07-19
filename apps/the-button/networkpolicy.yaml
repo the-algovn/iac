@@ -7,8 +7,8 @@ spec:
   # the-button-service trusts an UNVERIFIED base64 decode of the gateway's JWT
   # for identity (it assumes only api-control-plane can reach it) — this
   # policy makes that assumption enforced instead of merely convention.
-  # Egress (2026-07-17 api-publisher split): the api needs exactly Postgres,
-  # Redis, and DNS — it no longer publishes to RabbitMQ.
+  # Egress: the api needs Postgres, Redis, and DNS, plus Kafka (Redpanda) —
+  # it now produces click events to Kafka for the worker to consume.
   podSelector:
     matchLabels: { app: the-button-service }
   policyTypes: [Ingress, Egress]
@@ -46,17 +46,50 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: redis }
       ports:
         - { port: 6379, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: redpanda }
+      ports:
+        - { port: 9092, protocol: TCP }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: the-button-publisher
+  name: the-button-migrate
   namespace: the-button
 spec:
-  # Publisher: no ingress except metrics scrape; egress to Postgres (SUM
-  # poll), Redis (milestones/difficulty), RabbitMQ (frame publish), DNS.
+  # The PreSync migration Job: egress to Postgres + DNS only, no ingress.
+  # There is no default-deny in this namespace, so the Job would reach Postgres
+  # without this policy — it exists because every other pod here is locked down
+  # and an unrestricted pod would be an inconsistency, not a feature.
   podSelector:
-    matchLabels: { app: the-button-publisher }
+    matchLabels: { app: the-button-migrate }
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: postgres }
+      ports:
+        - { port: 5432, protocol: TCP }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: the-button-worker
+  namespace: the-button
+spec:
+  # Worker: no ingress except metrics scrape; egress to Postgres (snapshot),
+  # Redis (counters/leaderboard/idempotency), Kafka (Redpanda, both consume
+  # and produce sse.* frames), DNS.
+  podSelector:
+    matchLabels: { app: the-button-worker }
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
@@ -85,22 +118,23 @@ spec:
         - { port: 6379, protocol: TCP }
     - to:
         - namespaceSelector:
-            matchLabels: { kubernetes.io/metadata.name: rabbitmq }
+            matchLabels: { kubernetes.io/metadata.name: redpanda }
       ports:
-        - { port: 5672, protocol: TCP }
+        - { port: 9092, protocol: TCP }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: the-button-migrate
+  name: the-button-topics
   namespace: the-button
 spec:
-  # The PreSync migration Job: egress to Postgres + DNS only, no ingress.
-  # There is no default-deny in this namespace, so the Job would reach Postgres
-  # without this policy — it exists because every other pod here is locked down
-  # and an unrestricted pod would be an inconsistency, not a feature.
+  # The PreSync topic-provisioning Job: egress to Kafka (Redpanda) + DNS only,
+  # no ingress. There is no default-deny in this namespace, so the Job would
+  # reach Redpanda without this policy — it exists because every other pod
+  # here is locked down and an unrestricted pod would be an inconsistency,
+  # not a feature.
   podSelector:
-    matchLabels: { app: the-button-migrate }
+    matchLabels: { app: the-button-topics }
   policyTypes: [Ingress, Egress]
   ingress: []
   egress:
@@ -112,6 +146,6 @@ spec:
         - { port: 53, protocol: TCP }
     - to:
         - namespaceSelector:
-            matchLabels: { kubernetes.io/metadata.name: postgres }
+            matchLabels: { kubernetes.io/metadata.name: redpanda }
       ports:
-        - { port: 5432, protocol: TCP }
+        - { port: 9092, protocol: TCP }

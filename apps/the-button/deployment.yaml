@@ -35,6 +35,7 @@ spec:
             - { name: LISTEN_ADDR, value: ":9090" }
             - { name: METRICS_ADDR, value: ":9091" }
             - { name: POW_W0, value: "2048" }
+            - { name: KAFKA_BROKERS, value: "redpanda.redpanda.svc.cluster.local:9092" }
             - name: PG_URL
               valueFrom: { secretKeyRef: { name: pg-the-button, key: uri } }
             - name: REDIS_URL
