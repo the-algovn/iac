@@ -4,7 +4,11 @@ metadata:
   name: redpanda
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    # data-tier dependency like postgres/redis: wave 0 so it is Healthy BEFORE the
+    # wave-1 consumers (the-button, api-control-plane) sync — otherwise the-button's
+    # PreSync topic Job races a cold Redpanda boot (image pull + init) and exhausts
+    # its backoff before the broker is ready.
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: default
   source:
