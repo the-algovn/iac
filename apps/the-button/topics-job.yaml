@@ -24,9 +24,11 @@ spec:
             - |
               set -e
               B=redpanda.redpanda.svc.cluster.local:9092
-              # Wait for the broker to be ready to accept CreateTopics (sync-wave 0
-              # should already have it Healthy, but a cold boot may lag the probe).
-              until rpk cluster health --brokers $B 2>/dev/null | grep -q 'Healthy:.*true'; do
+              # Wait for the broker to answer the KAFKA API (port 9092) — rpk
+              # cluster info speaks Kafka to --brokers, unlike `rpk cluster health`
+              # which hits the Admin API on localhost:9644 and would never succeed
+              # from here.
+              until rpk cluster info --brokers $B >/dev/null 2>&1; do
                 echo "waiting for redpanda..."; sleep 5
               done
               # || true keeps re-runs idempotent (create-on-existing exits non-zero).
