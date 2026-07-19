@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+  namespace: redpanda
+spec:
+  serviceName: redpanda
+  replicas: 1
+  selector:
+    matchLabels: { app: redpanda }
+  template:
+    metadata:
+      labels: { app: redpanda }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }   # single pod on w1; local-path PVC pins to first node
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+          # dev-container mode = low-resource single node (relaxed durability).
+          # Acceptable: Redis is authoritative and Postgres snapshots, so a lost
+          # Kafka record is safe-to-drop. Topics are provisioned by a PreSync Job
+          # (auto-create off; franz-go never requests it anyway).
+          # Exec-form command: each flag and its value MUST be a separate list
+          # item (no shell word-splitting on embedded spaces).
+          command:
+            - redpanda
+            - start
+            - --mode
+            - dev-container
+            - --smp
+            - "1"
+            - --memory
+            - 1G
+            - --reserve-memory
+            - 0M
+            - --default-log-level=warn
+            - --kafka-addr
+            - internal://0.0.0.0:9092
+            - --advertise-kafka-addr
+            - internal://redpanda.redpanda.svc.cluster.local:9092
+            - --set
+            - redpanda.auto_create_topics_enabled=false
+          ports:
+            - { containerPort: 9092, name: kafka }
+            - { containerPort: 9644, name: admin }
+          readinessProbe:
+            httpGet: { path: /v1/status/ready, port: 9644 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /v1/status/ready, port: 9644 }
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { memory: 1536Mi }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/redpanda/data }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources: { requests: { storage: 4Gi } }

@@ -1,0 +1,12 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: redpanda
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [redpanda] }
+  selector:
+    matchLabels: { app: redpanda }
+  endpoints:
+    - port: admin
+      path: /public_metrics
