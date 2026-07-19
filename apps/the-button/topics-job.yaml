@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: the-button-topics
+  namespace: the-button
+  annotations:
+    # PreSync: topics exist before the service/worker pods roll and start
+    # producing/consuming. Idempotent — rpk topic create is a no-op if present.
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels: { app: the-button-topics }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: topics
+          image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              B=redpanda.redpanda.svc.cluster.local:9092
+              rpk topic create clicks -p 1 -r 1 -c retention.ms=300000 --brokers $B || true
+              rpk topic create sse.counter sse.leaderboard sse.user -p 1 -r 1 -c retention.ms=60000 --brokers $B || true
+              rpk topic list --brokers $B
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }

@@ -10,6 +10,7 @@ resources:
   - deployment.yaml
   - deployment-publisher.yaml
   - migrate-job.yaml
+  - topics-job.yaml
   - poddisruptionbudget.yaml
   - networkpolicy.yaml
   - service.yaml
