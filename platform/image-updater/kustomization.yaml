@@ -10,3 +10,4 @@ resources:
   - the-button-updater.yaml
   - the-button-web-updater.yaml
   - console-updater.yaml
+  - radio-updater.yaml

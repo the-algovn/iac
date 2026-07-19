@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-radio
+  namespace: radio
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: web-radio }
+  template:
+    metadata:
+      labels: { app: web-radio }
+    spec:
+      containers:
+        - name: web-radio
+          image: ghcr.io/the-algovn/web-radio:main
+          ports: [{ containerPort: 80 }]
+          readinessProbe:
+            httpGet: { path: /radio/, port: 80 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /radio/, port: 80 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      imagePullSecrets:
+        - name: registry-creds

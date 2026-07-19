@@ -1,0 +1,22 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: radio-updater
+  namespace: argocd
+spec:
+  applicationRefs:
+    - namePattern: radio
+      images:
+        - alias: web-radio
+          imageName: ghcr.io/the-algovn/web-radio:main
+          commonUpdateSettings:
+            updateStrategy: digest
+            pullSecret: pullsecret:argocd/ghcr-creds
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/the-algovn/web-radio
+      writeBackConfig:
+        method: git:secret:argocd/git-creds
+        gitConfig:
+          branch: main
+          writeBackTarget: kustomization:.
