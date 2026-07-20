@@ -1,0 +1,47 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: radio-service
+  namespace: radio-service
+spec:
+  podSelector:
+    matchLabels: { app: radio-service }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: api-control-plane }
+          podSelector:
+            matchLabels: { app: api-control-plane }
+      ports:
+        - { port: 9290, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: postgres }
+      ports:
+        - { port: 5432, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: minio }
+      ports:
+        - { port: 9000, protocol: TCP }
+    # External internet (Gemini/Anthropic/Google-TTS/yt-dlp): no FQDN selector in
+    # NetworkPolicy, so ipBlock. 10.42.0.0/16 (pod) and 10.43.0.0/16 (service)
+    # are the k3s defaults for this cluster; confirm against the real
+    # cluster-cidr/service-cidr at deploy time (cluster query was unavailable
+    # while authoring this). They're also within the excluded 10.0.0.0/8 RFC1918
+    # range, so listing them separately is belt-and-suspenders.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.42.0.0/16, 10.43.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - { port: 443, protocol: TCP }
+        - { port: 80, protocol: TCP }

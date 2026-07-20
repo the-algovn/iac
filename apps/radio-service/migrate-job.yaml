@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: radio-lab-migrate
+  namespace: radio-service
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels: { app: radio-lab-migrate }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/the-algovn/radio-service:main
+          command: ["/usr/local/bin/radio-lab-migrate"]
+          env:
+            - name: PG_URL
+              valueFrom: { secretKeyRef: { name: pg-radio-lab, key: uri } }
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      imagePullSecrets:
+        - name: registry-creds

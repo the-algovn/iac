@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radio-service
+  namespace: radio-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: radio-service }
+  template:
+    metadata:
+      labels: { app: radio-service }
+    spec:
+      # The image runs as uid 10001; fsGroup makes the emptyDir mount at
+      # /app/lab-data group-writable so the startup MkdirAll(lab-data/tmp) works
+      # (the image-time chown does NOT propagate to a k8s volume mount).
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: radio-service
+          image: ghcr.io/the-algovn/radio-service:main
+          ports:
+            - { containerPort: 9290, name: grpc }
+          env:
+            - { name: LISTEN_ADDR, value: ":9290" }
+            - { name: MINIO_ENDPOINT, value: "minio.minio.svc:9000" }
+            - { name: MINIO_USE_SSL, value: "false" }
+            - { name: MINIO_PUBLIC_ENDPOINT, value: "s3.algovn.com" }
+            - { name: MINIO_PUBLIC_USE_SSL, value: "true" }
+            - { name: MINIO_BUCKET, value: "radio-lab" }
+            - { name: LAB_DATA_DIR, value: "/app/lab-data" }
+            - { name: PERSONA_READONLY, value: "true" }
+            - name: PG_URL
+              valueFrom: { secretKeyRef: { name: pg-radio-lab, key: uri } }
+            - name: MINIO_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-creds, key: access } }
+            - name: MINIO_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: minio-creds, key: secret } }
+            - name: GEMINI_API_KEY
+              valueFrom: { secretKeyRef: { name: llm-keys, key: gemini } }
+            - name: ANTHROPIC_API_KEY
+              valueFrom: { secretKeyRef: { name: llm-keys, key: anthropic } }
+            - name: GOOGLE_TTS_API_KEY
+              valueFrom: { secretKeyRef: { name: llm-keys, key: google-tts } }
+          readinessProbe:
+            grpc: { port: 9290 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            grpc: { port: 9290 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi, ephemeral-storage: 1Gi }
+            limits: { memory: 512Mi, ephemeral-storage: 6Gi }
+          volumeMounts:
+            - { name: lab-data, mountPath: /app/lab-data }
+      volumes:
+        - name: lab-data
+          emptyDir: { sizeLimit: 5Gi }
+      imagePullSecrets:
+        - name: registry-creds

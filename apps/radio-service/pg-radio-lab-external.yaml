@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-radio-lab
+  namespace: radio-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: pg-radio-lab
+    creationPolicy: Owner
+  data:
+    - secretKey: uri
+      remoteRef:
+        key: algovn/radio-lab/pg
+        property: uri

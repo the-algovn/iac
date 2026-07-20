@@ -11,3 +11,4 @@ resources:
   - the-button-web-updater.yaml
   - console-updater.yaml
   - radio-updater.yaml
+  - radio-service-updater.yaml

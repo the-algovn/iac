@@ -1,0 +1,26 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: llm-keys
+  namespace: radio-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: llm-keys
+    creationPolicy: Owner
+  data:
+    - secretKey: gemini
+      remoteRef:
+        key: algovn/radio-lab/gemini
+        property: GEMINI_API_KEY
+    - secretKey: anthropic
+      remoteRef:
+        key: algovn/radio-lab/anthropic
+        property: ANTHROPIC_API_KEY
+    - secretKey: google-tts
+      remoteRef:
+        key: algovn/radio-lab/google-tts
+        property: GOOGLE_TTS_API_KEY
