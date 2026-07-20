@@ -1,0 +1,22 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-root
+  namespace: minio
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: minio-root
+    creationPolicy: Owner
+  data:
+    - secretKey: username
+      remoteRef:
+        key: algovn/radio-lab/minio
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: algovn/radio-lab/minio
+        property: password

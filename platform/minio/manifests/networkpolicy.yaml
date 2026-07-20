@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minio
+  namespace: minio
+spec:
+  podSelector:
+    matchLabels: { app: minio }
+  policyTypes: [Ingress]
+  ingress:
+    # S3 API from radio-service + the Kong ingress controller (public presigned GETs).
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: radio-service }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kong }
+      ports:
+        - { port: 9000, protocol: TCP }

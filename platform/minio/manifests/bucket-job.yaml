@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-bucket-radio-lab
+  namespace: minio
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              until mc alias set m http://minio.minio.svc:9000 "$U" "$P"; do sleep 2; done;
+              mc mb --ignore-existing m/radio-lab
+          env:
+            - name: U
+              valueFrom: { secretKeyRef: { name: minio-root, key: username } }
+            - name: P
+              valueFrom: { secretKeyRef: { name: minio-root, key: password } }
