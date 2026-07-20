@@ -9,3 +9,5 @@ resources:
   - pg-role-openfga-external.yaml
   - db-the-button.yaml
   - pg-role-the-button-external.yaml
+  - db-radio-lab.yaml
+  - pg-role-radio-lab-external.yaml

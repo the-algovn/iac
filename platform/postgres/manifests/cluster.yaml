@@ -33,6 +33,10 @@ spec:
         ensure: present
         login: true
         passwordSecret: { name: pg-role-the-button }
+      - name: radio_lab
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-radio-lab }
     services:
       additional:
         - selectorType: rw

@@ -1,0 +1,24 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-radio-lab
+  namespace: postgres
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: pg-role-radio-lab
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/basic-auth
+  data:
+    - secretKey: username
+      remoteRef:
+        key: algovn/postgres/pg-role-radio-lab
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: algovn/postgres/pg-role-radio-lab
+        property: password
