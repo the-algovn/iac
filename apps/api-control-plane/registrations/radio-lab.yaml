@@ -1,0 +1,19 @@
+prefix: /radio-lab
+upstream: dns:///radio-service.radio-service.svc.cluster.local:9290
+defaultRule: role:admin
+routes:
+  - { method: algovn.radiolab.v1.LabService/ListVoices,      verb: GET,  path: /voices,           rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/SynthesizeVoice, verb: POST, path: /voice/synthesize, rule: role:admin, deadline: 30s }
+  - { method: algovn.radiolab.v1.LabService/GenerateScript,  verb: POST, path: /brain/script,     rule: role:admin, deadline: 30s }
+  - { method: algovn.radiolab.v1.LabService/GetPersona,      verb: GET,  path: /persona,          rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/SavePersona,     verb: POST, path: /persona/save,     rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/ParseCallIn,     verb: POST, path: /callin/parse,     rule: role:admin, deadline: 30s }
+  - { method: algovn.radiolab.v1.LabService/SearchTracks,    verb: POST, path: /ingest/search,    rule: role:admin, deadline: 30s }
+  - { method: algovn.radiolab.v1.LabService/DownloadTrack,   verb: POST, path: /ingest/download,  rule: role:admin, deadline: 120s }
+  - { method: algovn.radiolab.v1.LabService/RenderPreview,   verb: POST, path: /render/preview,   rule: role:admin, deadline: 60s }
+  - { method: algovn.radiolab.v1.LabService/ListArtifacts,   verb: POST, path: /artifacts/list,   rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/PresignArtifact, verb: POST, path: /artifacts/presign, rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/GetLedger,       verb: GET,  path: /ledger,           rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/SaveFixture,     verb: POST, path: /fixtures,         rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/ListTracks,      verb: POST, path: /library/list,     rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/DeleteTrack,     verb: POST, path: /library/delete,   rule: role:admin }
