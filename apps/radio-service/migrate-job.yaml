@@ -4,8 +4,12 @@ metadata:
   name: radio-lab-migrate
   namespace: radio-service
   annotations:
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Main-sync wave 1: runs AFTER the wave-0 ExternalSecrets (registry-creds,
+    # pg-radio-lab) are materialized. As a PreSync hook it ran BEFORE them, so on
+    # a first deploy the pod had no pull secret (private image -> 401) and no
+    # PG_URL. Replace=true re-runs it when the image (migration set) changes.
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
   backoffLimit: 2
   activeDeadlineSeconds: 300

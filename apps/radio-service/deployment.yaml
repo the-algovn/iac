@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: radio-service
   namespace: radio-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "2" # roll only after the migrate Job (wave 1) completes
 spec:
   replicas: 1
   selector:
