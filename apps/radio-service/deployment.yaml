@@ -40,12 +40,10 @@ spec:
               valueFrom: { secretKeyRef: { name: minio-creds, key: access } }
             - name: MINIO_SECRET_KEY
               valueFrom: { secretKeyRef: { name: minio-creds, key: secret } }
-            - name: GEMINI_API_KEY
-              valueFrom: { secretKeyRef: { name: llm-keys, key: gemini } }
-            - name: ANTHROPIC_API_KEY
-              valueFrom: { secretKeyRef: { name: llm-keys, key: anthropic } }
-            - name: GOOGLE_TTS_API_KEY
-              valueFrom: { secretKeyRef: { name: llm-keys, key: google-tts } }
+            # LLM/TTS keys (GEMINI/ANTHROPIC/GOOGLE_TTS) intentionally omitted for
+            # now — no keys yet. Voice/Brain/Call-in benches error at call-time;
+            # Library/Ingest are unaffected. Re-add these 3 env vars + the
+            # llm-keys ExternalSecret (revert this) once the keys are in OpenBao.
           readinessProbe:
             grpc: { port: 9290 }
             initialDelaySeconds: 5
