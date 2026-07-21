@@ -9,3 +9,4 @@ spec:
   selector: { app: radio-service }
   ports:
     - { port: 9290, targetPort: 9290, name: grpc }
+    - { port: 9291, targetPort: 9291, name: hls }

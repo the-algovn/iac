@@ -27,6 +27,7 @@ spec:
             - { containerPort: 9290, name: grpc }
           env:
             - { name: LISTEN_ADDR, value: ":9290" }
+            - { name: KAFKA_BROKERS, value: "redpanda.redpanda.svc.cluster.local:9092" }
             - { name: MINIO_ENDPOINT, value: "minio.minio.svc:9000" }
             - { name: MINIO_USE_SSL, value: "false" }
             - { name: MINIO_PUBLIC_ENDPOINT, value: "s3.algovn.com" }
@@ -51,7 +52,7 @@ spec:
             grpc: { port: 9290 }
             initialDelaySeconds: 10
           resources:
-            requests: { cpu: 50m, memory: 128Mi, ephemeral-storage: 1Gi }
+            requests: { cpu: 200m, memory: 128Mi, ephemeral-storage: 1Gi }
             limits: { memory: 512Mi, ephemeral-storage: 6Gi }
           volumeMounts:
             - { name: lab-data, mountPath: /app/lab-data }

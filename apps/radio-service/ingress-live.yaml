@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: radio-live
+  namespace: radio-service
+spec:
+  ingressClassName: kong
+  rules:
+    - host: algovn.com
+      http:
+        paths:
+          - path: /live
+            pathType: Prefix
+            backend:
+              service:
+                name: radio-service
+                port: { number: 9291 }
+  tls:
+    - hosts: [algovn.com]
