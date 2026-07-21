@@ -10,4 +10,4 @@ images:
   - name: ghcr.io/the-algovn/web-the-button
     newName: ghcr.io/the-algovn/web-the-button
     newTag: main
-    digest: sha256:0dbd6c7f0df931b54100aaba81293940016cb48fbd8b742bc25c9ccbe8b82b2c
+    digest: sha256:5f943e747d565d73a20a6df686360f581e2bfc4878d2600254d62c7a2449ce0d
