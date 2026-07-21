@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: radio-topics
+  namespace: radio-service
+  annotations:
+    # PreSync: the sse.radio.* topics exist before the engine pod rolls with
+    # KAFKA_BROKERS set (and quiets the gateway's unknown-topic consumer
+    # errors). Idempotent — rpk topic create is a no-op if present.
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600   # the readiness wait may sit through a cold Redpanda boot
+  template:
+    metadata:
+      labels: { app: radio-topics }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: topics
+          image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              B=redpanda.redpanda.svc.cluster.local:9092
+              # Wait for the broker to answer the KAFKA API (port 9092).
+              until rpk cluster info --brokers $B >/dev/null 2>&1; do
+                echo "waiting for redpanda..."; sleep 5
+              done
+              # || true keeps re-runs idempotent (create-on-existing exits non-zero).
+              rpk topic create sse.radio.nowplaying sse.radio.queue -p 1 -r 1 -c retention.ms=60000 --brokers $B || true
+              # Real success gate: describe FAILS if any topic is missing.
+              rpk topic describe sse.radio.nowplaying sse.radio.queue --brokers $B
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }
