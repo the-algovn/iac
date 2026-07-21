@@ -15,3 +15,12 @@ routes:
   - { method: algovn.radio.v1.RadioService/SetActivePlaylist, verb: POST, path: /station/active,         rule: role:admin }
   - { method: algovn.radio.v1.RadioService/GoOnAir,           verb: POST, path: /station/on-air,         rule: role:admin }
   - { method: algovn.radio.v1.RadioService/GoOffAir,          verb: POST, path: /station/off-air,        rule: role:admin }
+  - { method: algovn.radio.v1.RadioService/GetNowPlaying, verb: GET,  path: /now-playing, rule: anonymous }
+  - { method: algovn.radio.v1.RadioService/GetQueue,      verb: GET,  path: /queue,       rule: anonymous }
+  - { method: algovn.radio.v1.RadioService/GetHistory,    verb: GET,  path: /history,     rule: anonymous }
+  - { method: algovn.radio.v1.RadioService/Heartbeat,     verb: POST, path: /heartbeat,   rule: anonymous }
+channels:
+  - name: radio.nowplaying
+    rule: anonymous
+  - name: radio.queue
+    rule: anonymous
