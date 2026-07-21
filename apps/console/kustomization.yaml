@@ -10,4 +10,4 @@ images:
   - name: ghcr.io/the-algovn/web-console
     newName: ghcr.io/the-algovn/web-console
     newTag: main
-    digest: sha256:52a8d245a8ddf4a813ab7ddd4c1464b333e367f90ff876b35851670231fa8901
+    digest: sha256:b5a2bf39540ce427367fe67477d33f1240dbaccaad226034c2ade079d01fbdcf
