@@ -15,9 +15,12 @@ spec:
     # Only keys that exist in OpenBao may be listed — a single missing
     # remoteRef fails the WHOLE ExternalSecret and the Secret never
     # materializes. Re-add gemini (algovn/radio-lab/gemini, GEMINI_API_KEY)
-    # and google-tts (algovn/radio-lab/google-tts, GOOGLE_TTS_API_KEY) here
-    # when those keys are populated.
+    # here when that key is populated.
     - secretKey: anthropic
       remoteRef:
         key: algovn/radio-lab/anthropic
         property: ANTHROPIC_API_KEY
+    - secretKey: google-tts
+      remoteRef:
+        key: algovn/radio-lab/google-tts
+        property: GOOGLE_TTS_API_KEY

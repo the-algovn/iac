@@ -41,16 +41,25 @@ spec:
               valueFrom: { secretKeyRef: { name: minio-creds, key: access } }
             - name: MINIO_SECRET_KEY
               valueFrom: { secretKeyRef: { name: minio-creds, key: secret } }
-            - { name: RADIO_DAILY_BUDGET_USD, value: "1.0" }
-            # LLM keys: optional on purpose — the llm-keys ExternalSecret is
-            # not in kustomization.yaml until OpenBao holds the keys (see
-            # radiolab-prod prereqs). Keyless, the programmer runs its fake
-            # mode (library re-spins, zero spend). GOOGLE_TTS stays out — no
-            # on-air voice in radio v1.
+            # Shared daily ceiling: programmer library re-spins + DJ script/TTS spend.
+            - { name: RADIO_DAILY_BUDGET_USD, value: "3.0" }
+            # LLM keys: optional on purpose — a key absent from OpenBao (and so
+            # from the llm-keys Secret) degrades to fake mode rather than
+            # blocking startup. gemini is still unpopulated; scripts come from
+            # anthropic.
             - name: GEMINI_API_KEY
               valueFrom: { secretKeyRef: { name: llm-keys, key: gemini, optional: true } }
             - name: ANTHROPIC_API_KEY
               valueFrom: { secretKeyRef: { name: llm-keys, key: anthropic, optional: true } }
+            - name: GOOGLE_TTS_API_KEY
+              valueFrom: { secretKeyRef: { name: llm-keys, key: google-tts, optional: true } }
+            # Talk breaks (radio v2): Tiểu Dương Dương speaks at track seams.
+            - { name: RADIO_DJ_ENABLED, value: "true" }
+            - { name: RADIO_DJ_VOICE, value: "vi-VN-Chirp3-HD-Aoede" }
+            - { name: RADIO_DJ_RATE, value: "1.0" }
+            - { name: RADIO_DJ_BREAK_EVERY, value: "2" }
+            - { name: RADIO_DJ_STATION_ID_MIN, value: "60" }
+            - { name: RADIO_DJ_MAX_CHARS, value: "450" }
           readinessProbe:
             grpc: { port: 9290 }
             initialDelaySeconds: 5
