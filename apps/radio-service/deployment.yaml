@@ -55,7 +55,7 @@ spec:
               valueFrom: { secretKeyRef: { name: llm-keys, key: google-tts, optional: true } }
             # Talk breaks (radio v2): Tiểu Dương Dương speaks at track seams.
             - { name: RADIO_DJ_ENABLED, value: "true" }
-            - { name: RADIO_DJ_VOICE, value: "vi-VN-Chirp3-HD-Aoede" }
+            - { name: RADIO_DJ_VOICE, value: "vi-VN-Neural2-A" }
             - { name: RADIO_DJ_RATE, value: "1.0" }
             - { name: RADIO_DJ_BREAK_EVERY, value: "2" }
             - { name: RADIO_DJ_STATION_ID_MIN, value: "60" }
