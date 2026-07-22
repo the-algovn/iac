@@ -1,4 +1,5 @@
-# Prod twin of dev/registrations/radio.yaml — keep the route list in sync.
+# Prod twin of dev/registrations/radio.yaml.
+# v1 adds the authenticated listener surface (search / requests / requests/mine).
 prefix: /radio
 upstream: dns:///radio-service.radio-service.svc.cluster.local:9290
 defaultRule: role:admin
@@ -19,6 +20,9 @@ routes:
   - { method: algovn.radio.v1.RadioService/GetQueue,      verb: GET,  path: /queue,       rule: anonymous }
   - { method: algovn.radio.v1.RadioService/GetHistory,    verb: GET,  path: /history,     rule: anonymous }
   - { method: algovn.radio.v1.RadioService/Heartbeat,     verb: POST, path: /heartbeat,   rule: anonymous }
+  - { method: algovn.radio.v1.RadioService/SearchCandidates, verb: POST, path: /search,        rule: authenticated, deadline: 30s }
+  - { method: algovn.radio.v1.RadioService/RequestTrack,     verb: POST, path: /requests,      rule: authenticated }
+  - { method: algovn.radio.v1.RadioService/ListMyRequests,   verb: GET,  path: /requests/mine, rule: authenticated }
 channels:
   - name: radio.nowplaying
     rule: anonymous
