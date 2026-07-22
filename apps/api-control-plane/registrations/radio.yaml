@@ -1,4 +1,4 @@
-# Prod twin of dev/registrations/radio.yaml.
+# Prod twin of dev/registrations/radio.yaml — keep the route list in sync.
 # v1 adds the authenticated listener surface (search / requests / requests/mine).
 prefix: /radio
 upstream: dns:///radio-service.radio-service.svc.cluster.local:9290
