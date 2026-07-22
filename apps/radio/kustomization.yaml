@@ -10,4 +10,4 @@ images:
   - name: ghcr.io/the-algovn/web-radio
     newName: ghcr.io/the-algovn/web-radio
     newTag: main
-    digest: sha256:d2a60d2a92b1a7ea241405a98124f1ae3615f8ce03f8dab79e1da5bb805179ef
+    digest: sha256:f95640cf27ed04c51ac29c37b0a2a4ddd17c6f9478641b6dfb91a3c8aa4bf03f
