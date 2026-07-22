@@ -41,10 +41,16 @@ spec:
               valueFrom: { secretKeyRef: { name: minio-creds, key: access } }
             - name: MINIO_SECRET_KEY
               valueFrom: { secretKeyRef: { name: minio-creds, key: secret } }
-            # LLM/TTS keys (GEMINI/ANTHROPIC/GOOGLE_TTS) intentionally omitted for
-            # now — no keys yet. Voice/Brain/Call-in benches error at call-time;
-            # Library/Ingest are unaffected. Re-add these 3 env vars + the
-            # llm-keys ExternalSecret (revert this) once the keys are in OpenBao.
+            - { name: RADIO_DAILY_BUDGET_USD, value: "1.0" }
+            # LLM keys: optional on purpose — the llm-keys ExternalSecret is
+            # not in kustomization.yaml until OpenBao holds the keys (see
+            # radiolab-prod prereqs). Keyless, the programmer runs its fake
+            # mode (library re-spins, zero spend). GOOGLE_TTS stays out — no
+            # on-air voice in radio v1.
+            - name: GEMINI_API_KEY
+              valueFrom: { secretKeyRef: { name: llm-keys, key: gemini, optional: true } }
+            - name: ANTHROPIC_API_KEY
+              valueFrom: { secretKeyRef: { name: llm-keys, key: anthropic, optional: true } }
           readinessProbe:
             grpc: { port: 9290 }
             initialDelaySeconds: 5
