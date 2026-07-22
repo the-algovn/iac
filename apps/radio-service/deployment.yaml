@@ -57,9 +57,9 @@ spec:
             - { name: RADIO_DJ_ENABLED, value: "true" }
             - { name: RADIO_DJ_VOICE, value: "vi-VN-Neural2-A" }
             - { name: RADIO_DJ_RATE, value: "1.0" }
-            - { name: RADIO_DJ_BREAK_EVERY, value: "2" }
+            - { name: RADIO_DJ_BREAK_EVERY, value: "1" }
             - { name: RADIO_DJ_STATION_ID_MIN, value: "60" }
-            - { name: RADIO_DJ_MAX_CHARS, value: "450" }
+            - { name: RADIO_DJ_MAX_CHARS, value: "1024" }
           readinessProbe:
             grpc: { port: 9290 }
             initialDelaySeconds: 5
