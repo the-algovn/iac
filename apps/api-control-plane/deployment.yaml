@@ -24,8 +24,9 @@ spec:
             - { name: REGISTRATIONS_DIR, value: /etc/api-registrations }
             - { name: ISSUER, value: "https://id.algovn.com" }
             # Accepted aud values in Zitadel tokens: the-thing project id, the-button-web
-            # client id, algovn-web project id, console client id (mirrors dev/Tiltfile).
-            - { name: AUDIENCE, value: "381978168812110193,381980626372329841,382008146408767857,382008149395112305" }
+            # client id, algovn-web project id, console client id, radio project id,
+            # radio-web client id (mirrors dev/Tiltfile).
+            - { name: AUDIENCE, value: "381978168812110193,381980626372329841,382008146408767857,382008149395112305,382858782499144049,382858783153455473" }
             - { name: CORS_ORIGINS, value: "https://*.algovn.com,https://algovn.com" }
             - { name: GOMEMLIMIT, value: 900MiB }
             - { name: SSE_MAX_CONNS, value: "15000" }

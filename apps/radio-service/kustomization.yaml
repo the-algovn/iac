@@ -5,6 +5,7 @@ resources:
   - registry-creds-external.yaml
   - pg-radio-lab-external.yaml
   - minio-creds-external.yaml
+  - llm-keys-external.yaml
   - deployment.yaml
   - service.yaml
   - migrate-job.yaml
