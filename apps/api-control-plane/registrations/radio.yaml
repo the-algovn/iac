@@ -1,19 +1,10 @@
 # Prod twin of dev/registrations/radio.yaml — keep the route list in sync.
-# v1 adds the authenticated listener surface (search / requests / requests/mine).
+# v1.2 replaces the playlist surface with station-console moderation.
 prefix: /radio
 upstream: dns:///radio-service.radio-service.svc.cluster.local:9290
 defaultRule: role:admin
 routes:
-  - { method: algovn.radio.v1.RadioService/CreatePlaylist,    verb: POST, path: /playlists/create,       rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/ListPlaylists,     verb: GET,  path: /playlists,              rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/GetPlaylist,       verb: POST, path: /playlists/get,          rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/RenamePlaylist,    verb: POST, path: /playlists/rename,       rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/DeletePlaylist,    verb: POST, path: /playlists/delete,       rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/AddTrack,          verb: POST, path: /playlists/add-track,    rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/RemoveTrack,       verb: POST, path: /playlists/remove-track, rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/ReorderTracks,     verb: POST, path: /playlists/reorder,      rule: role:admin }
   - { method: algovn.radio.v1.RadioService/GetStation,        verb: GET,  path: /station,                rule: role:admin }
-  - { method: algovn.radio.v1.RadioService/SetActivePlaylist, verb: POST, path: /station/active,         rule: role:admin }
   - { method: algovn.radio.v1.RadioService/GoOnAir,           verb: POST, path: /station/on-air,         rule: role:admin }
   - { method: algovn.radio.v1.RadioService/GoOffAir,          verb: POST, path: /station/off-air,        rule: role:admin }
   - { method: algovn.radio.v1.RadioService/GetNowPlaying, verb: GET,  path: /now-playing, rule: anonymous }
@@ -23,6 +14,11 @@ routes:
   - { method: algovn.radio.v1.RadioService/SearchCandidates, verb: POST, path: /search,        rule: authenticated, deadline: 30s }
   - { method: algovn.radio.v1.RadioService/RequestTrack,     verb: POST, path: /requests,      rule: authenticated }
   - { method: algovn.radio.v1.RadioService/ListMyRequests,   verb: GET,  path: /requests/mine, rule: authenticated }
+  - { method: algovn.radio.v1.RadioService/ListStationRequests, verb: GET,  path: /station/requests,         rule: role:admin }
+  - { method: algovn.radio.v1.RadioService/ReorderRequests,     verb: POST, path: /station/requests/reorder, rule: role:admin }
+  - { method: algovn.radio.v1.RadioService/RemoveRequest,       verb: POST, path: /station/requests/remove,  rule: role:admin }
+  - { method: algovn.radio.v1.RadioService/SkipTrack,           verb: POST, path: /station/skip,             rule: role:admin }
+  - { method: algovn.radio.v1.RadioService/SetAIEnabled,        verb: POST, path: /station/ai,               rule: role:admin }
 channels:
   - name: radio.nowplaying
     rule: anonymous
