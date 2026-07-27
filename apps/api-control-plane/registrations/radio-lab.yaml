@@ -17,3 +17,5 @@ routes:
   - { method: algovn.radiolab.v1.LabService/SaveFixture,     verb: POST, path: /fixtures,         rule: role:admin }
   - { method: algovn.radiolab.v1.LabService/ListTracks,      verb: POST, path: /library/list,     rule: role:admin }
   - { method: algovn.radiolab.v1.LabService/DeleteTrack,     verb: POST, path: /library/delete,   rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/ListLLMCalls,    verb: POST, path: /llm-calls/list,   rule: role:admin }
+  - { method: algovn.radiolab.v1.LabService/GetLLMStats,     verb: POST, path: /llm-calls/stats,  rule: role:admin }
