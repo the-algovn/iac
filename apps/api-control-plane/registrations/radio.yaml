@@ -19,6 +19,7 @@ routes:
   - { method: algovn.radio.v1.RadioService/RemoveRequest,       verb: POST, path: /station/requests/remove,  rule: role:admin }
   - { method: algovn.radio.v1.RadioService/SkipTrack,           verb: POST, path: /station/skip,             rule: role:admin }
   - { method: algovn.radio.v1.RadioService/SetAIEnabled,        verb: POST, path: /station/ai,               rule: role:admin }
+  - { method: algovn.radio.v1.RadioService/UpdateDJSettings,    verb: POST, path: /station/dj,               rule: role:admin }
 channels:
   - name: radio.nowplaying
     rule: anonymous
