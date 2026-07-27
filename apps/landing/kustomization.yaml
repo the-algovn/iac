@@ -10,4 +10,4 @@ images:
   - name: ghcr.io/the-algovn/web-landing
     newName: ghcr.io/the-algovn/web-landing
     newTag: main
-    digest: sha256:900597c09edc3f3e9067f60b6d12b23a04382c592f339ab7c48370b3bbf47b90
+    digest: sha256:9de9360af52002a1e022d62d5b6f555ae6990b3694a74ff49e5e881ba419a126
