@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# obs — query production logs (Loki) and traces (Tempo) from a laptop.
+#
+# Everything runs through a temporary `kubectl port-forward`, so it needs no
+# ingress and no long-lived credential: if you can reach the cluster, you can
+# read the logs.
+#
+#   obs errors [--since 1h]        errors across every application namespace
+#   obs trace <trace_id>           every log line and span for one request
+#   obs tail <ns> [container]      follow a namespace's logs
+#   obs grep '<logql>' [--since 1h]  raw LogQL
+set -euo pipefail
+
+CONTEXT="${KUBE_CONTEXT:-algovn-remote}"
+SINCE="1h"
+LIMIT="${OBS_LIMIT:-1000}"
+
+# forward() records each port-forward's pid in this file rather than a shell
+# array: forward() is always called from inside a subshell (either the left
+# side of a pipe, e.g. `loki_query ... | render`, or a `$(...)` command
+# substitution), and a subshell's array writes never reach the parent shell.
+# A file survives subshell boundaries, so this is what actually lets cleanup
+# find and kill every port-forward it started.
+PIDFILE=$(mktemp "${TMPDIR:-/tmp}/obs-pids.XXXXXX")
+
+die() { echo "obs: $*" >&2; exit 1; }
+
+cleanup() {
+  if [[ -f "$PIDFILE" ]]; then
+    while IFS= read -r pid; do
+      [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+    done < "$PIDFILE"
+    rm -f "$PIDFILE"
+  fi
+}
+trap cleanup EXIT INT TERM
+
+# free_port picks an unused local port so concurrent runs do not collide.
+free_port() {
+  python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'
+}
+
+# forward <namespace> <service> <remote-port> -> echoes the local port.
+# Returns 1 (and prints nothing to stdout) if the port-forward never becomes
+# reachable — either kubectl exited immediately (bad namespace/service, as
+# happens today with Tempo, which is not deployed) or it timed out.
+forward() {
+  local ns=$1 svc=$2 port=$3 local_port pid i
+  local_port=$(free_port)
+  kubectl --context "$CONTEXT" -n "$ns" port-forward "svc/$svc" "$local_port:$port" >/dev/null 2>&1 &
+  pid=$!
+  echo "$pid" >> "$PIDFILE"
+  # 100 x 100ms = 10s: algovn-remote is reached over a cloudflared tunnel, and
+  # a fresh port-forward can occasionally take a few seconds to come up under
+  # load. A dead kubectl process (e.g. Tempo's namespace not existing) is
+  # still detected immediately below and does not wait out this budget.
+  for i in $(seq 1 100); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "obs: port-forward to $ns/$svc failed to start" >&2
+      return 1
+    fi
+    if curl -s -o /dev/null "http://127.0.0.1:$local_port" 2>/dev/null; then
+      echo "$local_port"
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "obs: timed out waiting for port-forward to $ns/$svc" >&2
+  return 1
+}
+
+loki_query() {
+  local query=$1 since=$2 port
+  port=$(forward logging loki 3100) || die "could not reach Loki"
+  curl -sG "http://127.0.0.1:$port/loki/api/v1/query_range" \
+    --data-urlencode "query=$query" \
+    --data-urlencode "since=$since" \
+    --data-urlencode "limit=$LIMIT" \
+    --data-urlencode "direction=forward"
+}
+
+# render turns a Loki query_range response into readable, time-ordered lines.
+# If there are zero matching lines, say so explicitly rather than printing
+# nothing — an operator needs to tell "queried and found nothing" apart from
+# "silently broke".
+render() {
+  local out
+  out=$(jq -r '
+    [ .data.result[]? as $s
+      | $s.values[]
+      | { ts: (.[0] | tonumber / 1e9),
+          ns: ($s.stream.namespace // "?"),
+          app: ($s.stream.container // $s.stream.pod // "?"),
+          line: .[1] }
+    ]
+    | sort_by(.ts)[]
+    | (.ts | strftime("%H:%M:%S")) + "  " + (.ns + "/" + .app | .[0:34]) + "  " +
+      ( .line as $raw
+        | ($raw
+            | try (fromjson
+                     | ((.level // "?") | ascii_upcase | .[0:5])
+                       + " " + (.msg // "")
+                       + " " + ([ to_entries[]
+                                  | select(.key | IN("level","msg","time","service","trace_id","span_id","version","env") | not)
+                                  | "\(.key)=\(.value)" ] | join(" ")))
+                 catch $raw) )
+  ')
+  if [[ -z "$out" ]]; then
+    echo "  (no matching lines)" >&2
+  else
+    printf '%s\n' "$out"
+  fi
+}
+
+parse_since() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --since) SINCE="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+}
+
+cmd_errors() {
+  parse_since "$@"
+  echo "== errors in the last $SINCE ==" >&2
+  loki_query '{namespace=~"api-control-plane|the-button|radio-service|console"} | json | level="ERROR"' "$SINCE" | render
+}
+
+cmd_trace() {
+  local id=${1:-}
+  [[ -n "$id" ]] || die "usage: obs trace <trace_id>"
+
+  echo "== logs for trace $id ==" >&2
+  # Trace IDs are unique, so search every namespace and let Loki filter.
+  loki_query "{namespace=~\".+\"} | json | trace_id=\"$id\"" "24h" | render
+
+  echo >&2
+  echo "== spans ==" >&2
+  local port
+  if port=$(forward tracing tempo 3200); then
+    curl -s "http://127.0.0.1:$port/api/traces/$id" \
+      | jq -r '
+          if (.batches // []) == [] then "  (no spans — Tempo has not ingested this trace)"
+          else
+            [ .batches[]
+              | (.resource.attributes[]? | select(.key=="service.name") | .value.stringValue) as $svc
+              | .scopeSpans[]?.spans[]?
+              | { svc: $svc, name: .name,
+                  start: (.startTimeUnixNano | tonumber),
+                  ms: (((.endTimeUnixNano | tonumber) - (.startTimeUnixNano | tonumber)) / 1e6) }
+            ]
+            | sort_by(.start)[]
+            | "  " + (.svc + " " * 24 | .[0:24]) + "  " +
+              (((.ms * 100 | round) / 100 | tostring) + "ms" + " " * 10 | .[0:10]) + "  " + .name
+          end'
+  else
+    echo "  (spans unavailable — could not reach Tempo)"
+  fi
+}
+
+cmd_tail() {
+  local ns=${1:-} container=${2:-}
+  [[ -n "$ns" ]] || die "usage: obs tail <namespace> [container]"
+  local selector="{namespace=\"$ns\"}"
+  [[ -n "$container" ]] && selector="{namespace=\"$ns\", container=\"$container\"}"
+
+  local port
+  port=$(forward logging loki 3100) || die "could not reach Loki"
+  echo "== tailing $selector (ctrl-c to stop) ==" >&2
+  # /loki/api/v1/tail is a WebSocket endpoint (it replies 400 Bad Request to
+  # a plain GET); curl speaks WebSocket natively over the ws:// scheme and
+  # writes the decoded frame payloads straight to stdout.
+  #
+  # The formatting step below is python3, not jq: verified against the live
+  # endpoint, this machine's jq buffers its *entire* input until EOF before
+  # emitting anything (true even with `jq --stream`), which for a tail that
+  # never hits EOF means the operator would stare at a blank terminal until
+  # Ctrl-C. python3's incremental JSON decoder prints each line as its frame
+  # arrives instead; python3 is already a hard dependency (see free_port).
+  curl -sN -G "ws://127.0.0.1:$port/loki/api/v1/tail" \
+    --data-urlencode "query=$selector" \
+    | python3 -u -c '
+import sys, json, time
+
+def run():
+    decoder = json.JSONDecoder()
+    buf = ""
+    while True:
+        chunk = sys.stdin.buffer.read1(4096).decode("utf-8", "replace")
+        if chunk == "":
+            break
+        buf += chunk
+        buf = buf.lstrip()
+        while buf:
+            try:
+                obj, idx = decoder.raw_decode(buf)
+            except ValueError:
+                break
+            buf = buf[idx:].lstrip()
+            for s in obj.get("streams", []):
+                container = s.get("stream", {}).get("container", "?")
+                for v in s.get("values", []):
+                    ts = time.strftime("%H:%M:%S", time.localtime(int(v[0]) / 1e9))
+                    sys.stdout.write(f"{ts}  {container}  {v[1]}")
+            sys.stdout.flush()
+
+try:
+    run()
+except KeyboardInterrupt:
+    pass
+'
+}
+
+cmd_grep() {
+  local query=${1:-}
+  [[ -n "$query" ]] || die "usage: obs grep '<logql>' [--since 1h]"
+  shift
+  parse_since "$@"
+  loki_query "$query" "$SINCE" | render
+}
+
+command -v jq >/dev/null || die "jq is required"
+command -v kubectl >/dev/null || die "kubectl is required"
+
+case "${1:-}" in
+  errors) shift; cmd_errors "$@" ;;
+  trace)  shift; cmd_trace  "$@" ;;
+  tail)   shift; cmd_tail   "$@" ;;
+  grep)   shift; cmd_grep   "$@" ;;
+  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' ; exit 1 ;;
+esac

@@ -32,6 +32,9 @@ spec:
               valueFrom: { secretKeyRef: { name: pg-the-button, key: uri } }
             - name: REDIS_URL
               valueFrom: { secretKeyRef: { name: redis-creds, key: url } }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
+            - { name: DEPLOY_ENV, value: "prod" }
+            - { name: LOG_LEVEL, value: "info" }
           readinessProbe:
             httpGet: { path: /healthz, port: 9091 }
             initialDelaySeconds: 3

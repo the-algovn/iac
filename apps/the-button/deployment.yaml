@@ -42,6 +42,9 @@ spec:
               valueFrom: { secretKeyRef: { name: redis-creds, key: url } }
             - name: POW_SECRET
               valueFrom: { secretKeyRef: { name: pow-secret, key: key } }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
+            - { name: DEPLOY_ENV, value: "prod" }
+            - { name: LOG_LEVEL, value: "info" }
           readinessProbe:
             grpc: { port: 9090 }
             initialDelaySeconds: 5
