@@ -42,6 +42,11 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: redpanda }
       ports:
         - { port: 9092, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tracing }
+      ports:
+        - { port: 4317, protocol: TCP }
     # External internet (Gemini/Anthropic/Google-TTS/yt-dlp): no FQDN selector in
     # NetworkPolicy, so ipBlock. 10.42.0.0/16 (pod) and 10.43.0.0/16 (service)
     # are the k3s defaults for this cluster; confirm against the real
