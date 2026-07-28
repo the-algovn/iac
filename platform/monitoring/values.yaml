@@ -59,11 +59,38 @@ grafana:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { memory: 512Mi }
   persistence: { enabled: false }
-  additionalDataSources:
+# additionalDataSources is not a key this chart's grafana wrapper reads (verified via
+# `helm template`: it silently renders nothing) — extra datasources go through
+# defaultDatasources.extra instead, which the chart merges into the vm-grafana-ds ConfigMap.
+defaultDatasources:
+  extra:
     - name: Loki
       type: loki
+      uid: loki
       url: http://loki.logging.svc.cluster.local:3100
       access: proxy
+      jsonData:
+        # Turn the trace_id field of a JSON log line into a link to its trace.
+        derivedFields:
+          - name: trace_id
+            matcherType: label
+            matcherRegex: trace_id
+            url: "${__value.raw}"
+            datasourceUid: tempo
+    - name: Tempo
+      type: tempo
+      uid: tempo
+      url: http://tempo.tracing.svc.cluster.local:3200
+      access: proxy
+      jsonData:
+        # And back the other way: from a span to the log lines it produced.
+        tracesToLogsV2:
+          datasourceUid: loki
+          spanStartTimeShift: -5m
+          spanEndTimeShift: 5m
+          filterByTraceID: true
+          customQuery: true
+          query: '{namespace=~".+"} | json | trace_id="${__trace.traceId}"'
 kubeControllerManager: { enabled: false }
 kubeScheduler: { enabled: false }
 kubeProxy: { enabled: false }
