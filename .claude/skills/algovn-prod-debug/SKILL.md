@@ -73,10 +73,15 @@ no logs, so an empty `obs` result there is expected, not evidence of anything.
 ## Reading the output
 
 - `duration_ms` on a `request` line is that hop's latency.
-- Log lines carry Loki labels `namespace`, `container`/`pod`, and `service_name`
-  (not a `service` field in the JSON body) — `obs`'s output already renders
-  `namespace/container`. There is currently no `env` label or field; this
-  cluster is prod-only.
+- `service_name` is a Loki LABEL Alloy derives from the pod — query it in the
+  stream selector, e.g. `{service_name="the-button-service"}`. Once an
+  instrumented service is deployed, `obs.Setup` (in `gopkg/obs`) additionally
+  stamps `service`, `version`, and `env` as FIELDS inside every JSON body
+  (`env` will be `"prod"`, per `DEPLOY_ENV` in the deployment manifests) —
+  query those after `| json`, e.g. `| json | service="the-button-service"`.
+  Right now (pre-merge) no body carries them yet, because the instrumented
+  services haven't deployed — that's a merge-ordering fact, not a permanent
+  one.
 - No `trace_id` on a line is expected everywhere right now (pre-merge), and
   will remain expected on background/startup work even after tracing ships,
   since that work has no originating request.
