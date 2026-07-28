@@ -26,11 +26,13 @@ spec:
     namespace: tracing
   syncPolicy:
     automated: { prune: true, selfHeal: true }
-    # ServerSideDiff is required alongside ServerSideApply: SSA never writes the
-    # last-applied-configuration annotation, and without it Argo falls back to
-    # comparing the git manifest against live. The ExternalSecret's CRD defaults
-    # (conversionStrategy, decodingStrategy, metadataPolicy, target.deletionPolicy)
-    # exist only in live, so the app sat permanently OutOfSync — a diff no sync
-    # could resolve. ServerSideDiff asks the API server for the merged result
-    # instead, which accounts for those defaults.
-    syncOptions: [CreateNamespace=true, ServerSideApply=true, ServerSideDiff=true]
+    # Client-side apply on purpose. ServerSideApply never writes the
+    # last-applied-configuration annotation, so Argo compares the raw git
+    # manifest against live and the ExternalSecret's CRD-defaulted fields
+    # (conversionStrategy, decodingStrategy, metadataPolicy, deletionPolicy)
+    # read as drift no sync can clear. The three-way merge ignores them.
+    # ServerSideDiff would also fix it, but the controller gates that feature
+    # off cluster-wide (ARGOCD_APPLICATION_CONTROLLER_SERVER_SIDE_DIFF is empty),
+    # so the option alone is a no-op. This matches the *-config apps, which hold
+    # every other ExternalSecret and stay Synced.
+    syncOptions: [CreateNamespace=true]
