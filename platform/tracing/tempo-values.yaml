@@ -26,17 +26,14 @@ tempo:
   resources:
     requests: { cpu: 100m, memory: 512Mi }
     limits: { memory: 1Gi }
-
-# Interpolate the S3 credentials from the ExternalSecret at startup.
-tempo.extraArgs:
-  config.expand-env: "true"
-extraArgs:
-  config.expand-env: "true"
-extraEnv:
-  - name: S3_ACCESS_KEY
-    valueFrom: { secretKeyRef: { name: tempo-minio-creds, key: access } }
-  - name: S3_SECRET_KEY
-    valueFrom: { secretKeyRef: { name: tempo-minio-creds, key: secret } }
+  # Interpolate the S3 credentials from the ExternalSecret at startup.
+  extraArgs:
+    config.expand-env: "true"
+  extraEnv:
+    - name: S3_ACCESS_KEY
+      valueFrom: { secretKeyRef: { name: tempo-minio-creds, key: access } }
+    - name: S3_SECRET_KEY
+      valueFrom: { secretKeyRef: { name: tempo-minio-creds, key: secret } }
 
 persistence:
   enabled: true
