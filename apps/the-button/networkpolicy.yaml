@@ -51,6 +51,11 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: redpanda }
       ports:
         - { port: 9092, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tracing }
+      ports:
+        - { port: 4317, protocol: TCP }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -121,6 +126,11 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: redpanda }
       ports:
         - { port: 9092, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tracing }
+      ports:
+        - { port: 4317, protocol: TCP }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

@@ -8,10 +8,13 @@ spec:
     matchLabels: { app: minio }
   policyTypes: [Ingress]
   ingress:
-    # S3 API from radio-service + the Kong ingress controller (public presigned GETs).
+    # S3 API from radio-service + tempo, and the Kong ingress controller
+    # (public presigned GETs).
     - from:
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: radio-service }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tracing }
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: kong }
       ports:
