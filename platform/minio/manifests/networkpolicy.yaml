@@ -9,8 +9,12 @@ spec:
   policyTypes: [Ingress]
   ingress:
     # S3 API from radio-service + tempo, and the Kong ingress controller
-    # (public presigned GETs).
+    # (public presigned GETs). The minio namespace itself must be here too:
+    # the bucket-creation Job runs in this namespace and talks to the Service,
+    # so omitting it silently wedged that Job in a retry loop for a week.
     - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: minio }
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: radio-service }
         - namespaceSelector:
