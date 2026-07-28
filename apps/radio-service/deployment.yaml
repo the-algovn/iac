@@ -55,6 +55,9 @@ spec:
               valueFrom: { secretKeyRef: { name: llm-keys, key: google-tts, optional: true } }
             # Talk breaks (radio v2): Tiểu Dương Dương speaks at track seams.
             - { name: RADIO_DJ_ENABLED, value: "true" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
+            - { name: DEPLOY_ENV, value: "prod" }
+            - { name: LOG_LEVEL, value: "info" }
           readinessProbe:
             grpc: { port: 9290 }
             initialDelaySeconds: 5
