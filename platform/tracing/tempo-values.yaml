@@ -1,0 +1,46 @@
+# Tempo, single binary. Traces are debugging aids with a short shelf life, so
+# retention is 72h against the existing MinIO rather than a dedicated PVC.
+tempo:
+  retention: 72h
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: tempo
+        endpoint: minio.minio.svc:9000
+        insecure: true
+        access_key: ${S3_ACCESS_KEY}
+        secret_key: ${S3_SECRET_KEY}
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+  # Services export 100% of spans; at this volume the limiter only needs to be
+  # high enough not to be the thing that drops them.
+  overrides:
+    defaults:
+      ingestion:
+        rate_limit_bytes: 20000000
+        burst_size_bytes: 30000000
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 1Gi }
+
+# Interpolate the S3 credentials from the ExternalSecret at startup.
+tempo.extraArgs:
+  config.expand-env: "true"
+extraArgs:
+  config.expand-env: "true"
+extraEnv:
+  - name: S3_ACCESS_KEY
+    valueFrom: { secretKeyRef: { name: tempo-minio-creds, key: access } }
+  - name: S3_SECRET_KEY
+    valueFrom: { secretKeyRef: { name: tempo-minio-creds, key: secret } }
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+serviceMonitor:
+  enabled: false
