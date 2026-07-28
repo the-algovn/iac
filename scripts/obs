@@ -42,8 +42,8 @@ free_port() {
 
 # forward <namespace> <service> <remote-port> -> echoes the local port.
 # Returns 1 (and prints nothing to stdout) if the port-forward never becomes
-# reachable — either kubectl exited immediately (bad namespace/service, as
-# happens today with Tempo, which is not deployed) or it timed out.
+# reachable — either kubectl exited immediately (bad namespace/service) or it
+# timed out.
 forward() {
   local ns=$1 svc=$2 port=$3 local_port pid i
   local_port=$(free_port)
