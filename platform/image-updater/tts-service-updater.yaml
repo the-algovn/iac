@@ -1,0 +1,30 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: tts-service-updater
+  namespace: argocd
+spec:
+  applicationRefs:
+    - namePattern: tts-service
+      images:
+        - alias: tts-service
+          imageName: ghcr.io/the-algovn/tts-service:main
+          commonUpdateSettings:
+            updateStrategy: digest
+            pullSecret: pullsecret:argocd/ghcr-creds
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/the-algovn/tts-service
+        - alias: tts-service-vieneu
+          imageName: ghcr.io/the-algovn/tts-service-vieneu:main
+          commonUpdateSettings:
+            updateStrategy: digest
+            pullSecret: pullsecret:argocd/ghcr-creds
+          manifestTargets:
+            kustomize:
+              name: ghcr.io/the-algovn/tts-service-vieneu
+      writeBackConfig:
+        method: git:secret:argocd/git-creds
+        gitConfig:
+          branch: main
+          writeBackTarget: kustomization:.

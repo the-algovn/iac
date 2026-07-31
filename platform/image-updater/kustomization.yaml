@@ -12,3 +12,4 @@ resources:
   - console-updater.yaml
   - radio-updater.yaml
   - radio-service-updater.yaml
+  - tts-service-updater.yaml

@@ -10,8 +10,10 @@ resources:
   - vieneu-deployment.yaml
   - vieneu-service.yaml
   - networkpolicy.yaml
-# No images: digest override yet -- unlike every sibling app here, neither
-# ghcr.io/the-algovn/tts-service nor ghcr.io/the-algovn/tts-service-vieneu has
-# a known digest yet (CI build + manual push are still in flight as of this
-# commit). Argo CD Image Updater (or a manual follow-up) should add this block
-# once both images exist, matching the pattern in every other apps/*/kustomization.yaml.
+images:
+  - name: ghcr.io/the-algovn/tts-service
+    newName: ghcr.io/the-algovn/tts-service
+    newTag: main
+  - name: ghcr.io/the-algovn/tts-service-vieneu
+    newName: ghcr.io/the-algovn/tts-service-vieneu
+    newTag: main
