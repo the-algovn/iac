@@ -1,0 +1,22 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: minio-creds
+  namespace: the-race-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: minio-creds
+    creationPolicy: Owner
+  data:
+    - secretKey: access
+      remoteRef:
+        key: algovn/the-race/minio
+        property: access_key
+    - secretKey: secret
+      remoteRef:
+        key: algovn/the-race/minio
+        property: secret_key

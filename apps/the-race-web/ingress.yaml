@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-the-race
+  namespace: the-race
+spec:
+  ingressClassName: kong
+  rules:
+    - host: algovn.com
+      http:
+        paths:
+          - path: /the-race
+            pathType: Prefix
+            backend:
+              service:
+                name: web-the-race
+                port: { number: 80 }
+  tls:
+    - hosts: [algovn.com]

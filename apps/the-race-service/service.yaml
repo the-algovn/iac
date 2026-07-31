@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: the-race-service
+  namespace: the-race-service
+spec:
+  selector: { app: the-race-service }
+  ports: [{ port: 9390, targetPort: 9390 }]

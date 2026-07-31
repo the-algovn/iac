@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - registry-creds-external.yaml
+  - pg-the-race-external.yaml
+  - minio-creds-external.yaml
+  - the-race-anthropic-external.yaml
+  - deployment.yaml
+  - service.yaml
+  - migrate-job.yaml
+  - networkpolicy.yaml
+images:
+  - name: ghcr.io/the-algovn/the-race-service
+    newTag: main
+    newName: ghcr.io/the-algovn/the-race-service

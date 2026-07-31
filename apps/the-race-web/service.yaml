@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-the-race
+  namespace: the-race
+spec:
+  selector: { app: web-the-race }
+  ports: [{ port: 80, targetPort: 80 }]

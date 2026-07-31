@@ -1,0 +1,18 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: the-race-anthropic
+  namespace: the-race-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: the-race-anthropic
+    creationPolicy: Owner
+  data:
+    - secretKey: api_key
+      remoteRef:
+        key: algovn/the-race/anthropic
+        property: api_key

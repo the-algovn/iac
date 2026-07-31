@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: the-race-service
+  namespace: the-race-service
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: the-race-service }
+  template:
+    metadata:
+      labels: { app: the-race-service }
+    spec:
+      containers:
+        - name: the-race-service
+          image: ghcr.io/the-algovn/the-race-service:main
+          ports:
+            - { containerPort: 9390, name: grpc }
+          env:
+            - { name: LISTEN_ADDR, value: ":9390" }
+            - { name: MINIO_ENDPOINT, value: "minio.minio.svc:9000" }
+            - { name: MINIO_USE_SSL, value: "false" }
+            - { name: MINIO_PUBLIC_ENDPOINT, value: "s3.algovn.com" }
+            - { name: MINIO_PUBLIC_USE_SSL, value: "true" }
+            - { name: MINIO_BUCKET, value: "the-race" }
+            - { name: TTS_ADDR, value: "tts-service.tts-service.svc:9490" }
+            - { name: RACE_VOICE_ID, value: "vi-VN-Neural2-A" }
+            - { name: RACE_DAILY_BUDGET_USD, value: "1.0" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
+            - { name: DEPLOY_ENV, value: "prod" }
+            - { name: LOG_LEVEL, value: "info" }
+            - name: PG_URL
+              valueFrom: { secretKeyRef: { name: pg-the-race, key: uri } }
+            - name: MINIO_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-creds, key: access } }
+            - name: MINIO_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: minio-creds, key: secret } }
+            - name: ANTHROPIC_API_KEY
+              valueFrom: { secretKeyRef: { name: the-race-anthropic, key: api_key, optional: true } }
+          readinessProbe:
+            grpc: { port: 9390 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            grpc: { port: 9390 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      imagePullSecrets:
+        - name: registry-creds
