@@ -19,7 +19,8 @@ spec:
             - >
               until mc alias set m http://minio.minio.svc:9000 "$U" "$P"; do sleep 2; done;
               mc mb --ignore-existing m/radio-lab;
-              mc mb --ignore-existing m/tempo
+              mc mb --ignore-existing m/tempo;
+              mc mb --ignore-existing m/tts-cache
           env:
             - name: U
               valueFrom: { secretKeyRef: { name: minio-root, key: username } }
