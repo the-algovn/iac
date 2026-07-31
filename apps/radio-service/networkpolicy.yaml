@@ -47,6 +47,15 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: tracing }
       ports:
         - { port: 4317, protocol: TCP }
+    # tts-service: shared Vietnamese TTS (Task 10/11). tts-service's own
+    # NetworkPolicy already allows ingress from this namespace on 9490, but
+    # that alone is not sufficient -- this pod also carries Egress in
+    # policyTypes, so its own egress must explicitly allow it too.
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tts-service }
+      ports:
+        - { port: 9490, protocol: TCP }
     # External internet (Gemini/Anthropic/Google-TTS/yt-dlp): no FQDN selector in
     # NetworkPolicy, so ipBlock. 10.42.0.0/16 (pod) and 10.43.0.0/16 (service)
     # are the k3s defaults for this cluster; confirm against the real
