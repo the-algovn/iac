@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tts-service
+  namespace: tts-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: tts-service }
+  template:
+    metadata:
+      labels: { app: tts-service }
+    spec:
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: tts-service
+          image: ghcr.io/the-algovn/tts-service:main
+          ports:
+            - { containerPort: 9490, name: grpc }
+          env:
+            - { name: LISTEN_ADDR, value: ":9490" }
+            - { name: MINIO_ENDPOINT, value: "minio.minio.svc:9000" }
+            - { name: MINIO_USE_SSL, value: "false" }
+            - { name: MINIO_BUCKET, value: "tts-cache" }
+            - { name: VIENEU_URL, value: "http://vieneu-tts.tts-service.svc:8080" }
+            - name: GOOGLE_TTS_API_KEY
+              valueFrom: { secretKeyRef: { name: tts-keys, key: google-tts } }
+            - name: MINIO_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: minio-creds, key: access } }
+            - name: MINIO_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: minio-creds, key: secret } }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
+            - { name: DEPLOY_ENV, value: "prod" }
+            - { name: LOG_LEVEL, value: "info" }
+          readinessProbe:
+            grpc: { port: 9490 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            grpc: { port: 9490 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      imagePullSecrets:
+        - name: registry-creds

@@ -1,0 +1,78 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tts-service
+  namespace: tts-service
+spec:
+  # the-race-service has no namespace in this cluster yet (not deployed), so
+  # no ingress rule for it here -- add one when Task 12 actually deploys it.
+  podSelector:
+    matchLabels: { app: tts-service }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: radio-service }
+      ports:
+        - { port: 9490, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    # No namespaceSelector needed: a bare podSelector matches pods in this
+    # policy's own namespace (tts-service).
+    - to:
+        - podSelector:
+            matchLabels: { app: vieneu-tts }
+      ports:
+        - { port: 8080, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: minio }
+      ports:
+        - { port: 9000, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: tracing }
+      ports:
+        - { port: 4317, protocol: TCP }
+    # External internet (Google TTS): no FQDN selector in NetworkPolicy, so
+    # ipBlock. Same CIDR/except shape as radio-service's netpol.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.42.0.0/16, 10.43.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - { port: 443, protocol: TCP }
+        - { port: 80, protocol: TCP }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vieneu-tts
+  namespace: tts-service
+spec:
+  # The model pod: reachable only from tts-service, and reaches nothing itself.
+  # HF_HUB_OFFLINE=1 (deploy/vieneu/Dockerfile) means it does no network I/O at
+  # runtime -- no MinIO, no internet, not even tracing. DNS egress only,
+  # matching the "every other pod here is locked down" baseline used elsewhere
+  # in this repo (e.g. the-button-migrate/the-button-topics).
+  podSelector:
+    matchLabels: { app: vieneu-tts }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: tts-service }
+      ports:
+        - { port: 8080, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - registry-creds-external.yaml
+  - minio-creds-external.yaml
+  - externalsecret.yaml
+  - deployment.yaml
+  - service.yaml
+  - vieneu-deployment.yaml
+  - vieneu-service.yaml
+  - networkpolicy.yaml
+# No images: digest override yet -- unlike every sibling app here, neither
+# ghcr.io/the-algovn/tts-service nor ghcr.io/the-algovn/tts-service-vieneu has
+# a known digest yet (CI build + manual push are still in flight as of this
+# commit). Argo CD Image Updater (or a manual follow-up) should add this block
+# once both images exist, matching the pattern in every other apps/*/kustomization.yaml.

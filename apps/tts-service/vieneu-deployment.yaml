@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vieneu-tts
+  namespace: tts-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: vieneu-tts }
+  template:
+    metadata:
+      labels: { app: vieneu-tts }
+    spec:
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: vieneu-tts
+          image: ghcr.io/the-algovn/tts-service-vieneu:main
+          ports:
+            - { containerPort: 8080, name: http }
+          # GET /healthz returns 503 until the model is resident in memory, 200
+          # after -- used for both probes. Model load takes tens of seconds, so
+          # liveness gets a large initialDelaySeconds + failureThreshold budget
+          # (~150s total) to avoid restart-looping a pod that is still loading;
+          # readiness has a short delay since a 503 there is a harmless "not
+          # in the Service endpoints yet", not a crash.
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 6
+          resources:
+            # Measured in Task 9: RTF 0.14-0.17 on CPU, 894 MB image. At a 2Gi
+            # memory limit the container was SILENTLY OOM-killed -- no error, no
+            # crash log, just a dead request. ~6Gi is the measured real
+            # requirement. This is a genuine claim on the one PC running this
+            # whole cluster (k3s, Postgres, MinIO, Redpanda, and a live radio
+            # stream all share it) -- do not "optimize" this back down without
+            # re-measuring; the CPU limit caps inference so it cannot starve the
+            # radio stream.
+            requests: { cpu: "500m", memory: "4Gi" }
+            limits: { cpu: "4", memory: "6Gi" }
+      imagePullSecrets:
+        - name: registry-creds
