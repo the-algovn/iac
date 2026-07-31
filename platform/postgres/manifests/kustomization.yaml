@@ -11,3 +11,5 @@ resources:
   - pg-role-the-button-external.yaml
   - db-radio-lab.yaml
   - pg-role-radio-lab-external.yaml
+  - db-the-race.yaml
+  - pg-role-the-race-external.yaml

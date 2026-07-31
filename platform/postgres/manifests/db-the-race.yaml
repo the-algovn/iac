@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: the-race
+  namespace: postgres
+spec:
+  name: the_race
+  owner: the_race
+  cluster: { name: pg }

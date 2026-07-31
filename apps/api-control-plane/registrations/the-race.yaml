@@ -1,0 +1,10 @@
+prefix: /the-race
+upstream: the-race-service.the-race-service.svc:9390
+defaultRule: authenticated
+routes:
+  - { method: algovn.race.v1.RaceService/CreateRoom,    verb: POST, path: /rooms,       rule: authenticated }
+  - { method: algovn.race.v1.RaceService/CreateRace,    verb: POST, path: /races,       rule: authenticated }
+  - { method: algovn.race.v1.RaceService/StartRace,     verb: POST, path: /races/start, rule: authenticated }
+  - { method: algovn.race.v1.RaceService/GetRace,       verb: POST, path: /races/get,   rule: anonymous }
+  - { method: algovn.race.v1.RaceService/GetRoom,       verb: POST, path: /rooms/get,   rule: anonymous }
+  - { method: algovn.race.v1.RaceService/ListRoomRaces, verb: POST, path: /rooms/races, rule: anonymous }

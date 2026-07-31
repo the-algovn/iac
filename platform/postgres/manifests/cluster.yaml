@@ -37,6 +37,10 @@ spec:
         ensure: present
         login: true
         passwordSecret: { name: pg-role-radio-lab }
+      - name: the_race
+        ensure: present
+        login: true
+        passwordSecret: { name: pg-role-the-race }
     services:
       additional:
         - selectorType: rw

@@ -20,6 +20,7 @@ configMapGenerator:
       - registrations/the-button.yaml
       - registrations/radio-lab.yaml
       - registrations/radio.yaml
+      - registrations/the-race.yaml
 generatorOptions:
   disableNameSuffixHash: true # stable name => ConfigMap updates hot-reload in place, no pod restart
 images:
