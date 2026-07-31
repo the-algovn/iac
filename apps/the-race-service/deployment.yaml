@@ -26,7 +26,7 @@ spec:
             - { name: MINIO_PUBLIC_USE_SSL, value: "true" }
             - { name: MINIO_BUCKET, value: "the-race" }
             - { name: TTS_ADDR, value: "tts-service.tts-service.svc:9490" }
-            - { name: RACE_VOICE_ID, value: "vi-VN-Neural2-A" }
+            - { name: RACE_VOICE_ID, value: "vieneu:Trúc Ly" }
             - { name: RACE_DAILY_BUDGET_USD, value: "1.0" }
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
             - { name: DEPLOY_ENV, value: "prod" }
