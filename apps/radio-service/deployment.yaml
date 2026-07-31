@@ -55,6 +55,11 @@ spec:
               valueFrom: { secretKeyRef: { name: llm-keys, key: google-tts, optional: true } }
             # Talk breaks (radio v2): Tiểu Dương Dương speaks at track seams.
             - { name: RADIO_DJ_ENABLED, value: "true" }
+            # The DJ writes prose; the programmer makes structured choices. The
+            # director runs its own model (spec 2026-07-29-radio-dj-seam-breaks
+            # §4); ANTHROPIC_MODEL stays the programmer's. Built only when
+            # ANTHROPIC_API_KEY is present, so a keyless env still boots on fakes.
+            - { name: RADIO_SCRIPT_MODEL, value: "claude-sonnet-5" }
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
             - { name: DEPLOY_ENV, value: "prod" }
             - { name: LOG_LEVEL, value: "info" }
