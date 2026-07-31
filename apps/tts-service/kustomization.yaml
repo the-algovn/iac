@@ -14,6 +14,8 @@ images:
   - name: ghcr.io/the-algovn/tts-service
     newName: ghcr.io/the-algovn/tts-service
     newTag: main
+    digest: sha256:c10acb55ee7b122f8f700df914f0559c735a0361edae35f36382d9bdde601c82
   - name: ghcr.io/the-algovn/tts-service-vieneu
     newName: ghcr.io/the-algovn/tts-service-vieneu
     newTag: main
+    digest: sha256:922278ca911281365968f843b6104ae6d4391237d837df28ae1a61edf8d95d6f
