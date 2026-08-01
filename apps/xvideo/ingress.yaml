@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: xvideo
+  namespace: xvideo
+spec:
+  ingressClassName: kong
+  rules:
+    - host: xvideo.algovn.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jellyfin
+                port:
+                  number: 30013
+  tls:
+    - hosts: [xvideo.algovn.com]
