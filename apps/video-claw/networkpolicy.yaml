@@ -1,0 +1,13 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: video-claw
+  namespace: video-claw
+spec:
+  podSelector: { matchLabels: { app: video-claw } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { name: api-control-plane } }
+      ports:
+        - { port: 9290, protocol: TCP }

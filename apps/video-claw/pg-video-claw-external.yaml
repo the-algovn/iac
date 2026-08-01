@@ -1,0 +1,12 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: pg-video-claw
+  namespace: video-claw
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: openbao, kind: ClusterSecretStore }
+  target: { name: pg-video-claw }
+  data:
+    - secretKey: uri
+      remoteRef: { key: kv/platform/postgres/video_claw, property: uri }

@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: video-claw-migrate
+  namespace: video-claw
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels: { app: video-claw-migrate }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/the-algovn/video-claw-service:main
+          command: ["/usr/local/bin/video-claw-migrate"]
+          env:
+            - name: PG_URL
+              valueFrom: { secretKeyRef: { name: pg-video-claw, key: uri } }
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      imagePullSecrets:
+        - name: registry-creds
