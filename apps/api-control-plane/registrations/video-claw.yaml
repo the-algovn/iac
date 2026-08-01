@@ -1,16 +1,16 @@
 prefix: /video-claw
 upstream: video-claw.video-claw.svc:9290
-defaultRule: admin
+defaultRule: role:admin
 routes:
-  - { method: algovn.videoclaw.v1.VideoClawService/CreateSource, verb: POST, path: /sources/create, rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/ListSources,  verb: POST, path: /sources,       rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/UpdateSource, verb: POST, path: /sources/update, rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/DeleteSource, verb: POST, path: /sources/delete, rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/CreateRule,  verb: POST, path: /rules/create,    rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/UpdateRule,  verb: POST, path: /rules/update,    rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/DeleteRule,  verb: POST, path: /rules/delete,    rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/StartCrawl,  verb: POST, path: /jobs/start,      rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/GetCrawlJob, verb: POST, path: /jobs/get,        rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/ListCrawlJobs, verb: POST, path: /jobs/list,     rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/ListVideos,  verb: POST, path: /videos/list,     rule: admin }
-  - { method: algovn.videoclaw.v1.VideoClawService/RetryDownload, verb: POST, path: /videos/retry,  rule: admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/CreateSource, verb: POST, path: /sources/create, rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/ListSources,  verb: POST, path: /sources,       rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/UpdateSource, verb: POST, path: /sources/update, rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/DeleteSource, verb: POST, path: /sources/delete, rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/CreateRule,  verb: POST, path: /rules/create,    rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/UpdateRule,  verb: POST, path: /rules/update,    rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/DeleteRule,  verb: POST, path: /rules/delete,    rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/StartCrawl,  verb: POST, path: /jobs/start,      rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/GetCrawlJob, verb: POST, path: /jobs/get,        rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/ListCrawlJobs, verb: POST, path: /jobs/list,     rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/ListVideos,  verb: POST, path: /videos/list,     rule: role:admin }
+  - { method: algovn.videoclaw.v1.VideoClawService/RetryDownload, verb: POST, path: /videos/retry,  rule: role:admin }
