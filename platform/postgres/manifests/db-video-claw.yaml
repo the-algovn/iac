@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: video-claw
+  namespace: postgres
+spec:
+  name: video_claw
+  owner: video_claw
+  cluster: { name: pg }

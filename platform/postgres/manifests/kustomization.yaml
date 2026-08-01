@@ -13,3 +13,5 @@ resources:
   - pg-role-radio-lab-external.yaml
   - db-the-race.yaml
   - pg-role-the-race-external.yaml
+  - db-video-claw.yaml
+  - pg-role-video-claw-external.yaml
