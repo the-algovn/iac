@@ -13,3 +13,4 @@ resources:
   - radio-updater.yaml
   - radio-service-updater.yaml
   - tts-service-updater.yaml
+  - the-race-service-updater.yaml
