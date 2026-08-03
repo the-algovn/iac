@@ -58,7 +58,12 @@ spec:
               # unattached policy would leave every race silent again, and a job that
               # exits 0 on that is worse than no job.
               mc admin policy attach m the-race-rw --user "$RACE_ACCESS" 2>/dev/null || true
-              mc admin user info m "$RACE_ACCESS" | grep -q the-race-rw
+              # case, not grep: this image ships mc and a shell, nothing else.
+              info=$(mc admin user info m "$RACE_ACCESS")
+              case "$info" in
+                *the-race-rw*) echo "the-race-svc carries the-race-rw" ;;
+                *) echo "FATAL: policy not attached: $info" >&2; exit 1 ;;
+              esac
           env:
             - name: U
               valueFrom: { secretKeyRef: { name: minio-root, key: username } }
