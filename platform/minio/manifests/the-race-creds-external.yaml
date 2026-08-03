@@ -1,0 +1,26 @@
+# The credential the-race-service authenticates with, pulled into THIS namespace
+# so the provisioning job below can create the matching MinIO user. The service
+# reads the very same OpenBao path into its own namespace — the two must agree,
+# which is why both sides read the secret rather than either one inventing it.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: the-race-creds
+  namespace: minio
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: bao
+  target:
+    name: the-race-creds
+    creationPolicy: Owner
+  data:
+    - secretKey: access
+      remoteRef:
+        key: algovn/the-race/minio
+        property: access_key
+    - secretKey: secret
+      remoteRef:
+        key: algovn/the-race/minio
+        property: secret_key

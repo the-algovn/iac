@@ -3,8 +3,10 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - minio-root-external.yaml
+  - the-race-creds-external.yaml
   - statefulset.yaml
   - service.yaml
   - ingress.yaml
   - bucket-job.yaml
+  - the-race-provision-job.yaml
   - networkpolicy.yaml

@@ -1,0 +1,70 @@
+# Creates the-race's bucket and the user that writes to it. Distinct from
+# bucket-job.yaml because this one also provisions an identity: radio-service and
+# tts-service authenticate as MinIO root, and the-race deliberately does not.
+#
+# The OpenBao secret named an access key (the-race-svc) that no MinIO user backed,
+# so every clip upload failed with "Access Key Id you provided does not exist" and
+# races went out silent while the AI still wrote the lines. Nothing in the cluster
+# created MinIO users at all — this closes that gap.
+#
+# Idempotent: it re-runs on every sync of the minio app.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-provision-the-race
+  namespace: minio
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              until mc alias set m http://minio.minio.svc:9000 "$U" "$P"; do sleep 2; done
+              mc mb --ignore-existing m/the-race
+              # CreateBucket is scoped to this one bucket so the service can still
+              # self-heal if the bucket is ever removed; it holds no other rights,
+              # and never deletes objects because nothing in the code does.
+              cat >/tmp/the-race-rw.json <<'JSON'
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Action": ["s3:ListBucket", "s3:GetBucketLocation", "s3:CreateBucket"],
+                    "Resource": ["arn:aws:s3:::the-race"]
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": ["s3:PutObject", "s3:GetObject"],
+                    "Resource": ["arn:aws:s3:::the-race/*"]
+                  }
+                ]
+              }
+              JSON
+              mc admin user add m "$RACE_ACCESS" "$RACE_SECRET"
+              mc admin policy info m the-race-rw >/dev/null 2>&1 \
+                || mc admin policy create m the-race-rw /tmp/the-race-rw.json
+              # attach is not idempotent — it errors when already attached, which is
+              # a success here. So swallow it, then ASSERT the end state: a silently
+              # unattached policy would leave every race silent again, and a job that
+              # exits 0 on that is worse than no job.
+              mc admin policy attach m the-race-rw --user "$RACE_ACCESS" 2>/dev/null || true
+              mc admin user info m "$RACE_ACCESS" | grep -q the-race-rw
+          env:
+            - name: U
+              valueFrom: { secretKeyRef: { name: minio-root, key: username } }
+            - name: P
+              valueFrom: { secretKeyRef: { name: minio-root, key: password } }
+            - name: RACE_ACCESS
+              valueFrom: { secretKeyRef: { name: the-race-creds, key: access } }
+            - name: RACE_SECRET
+              valueFrom: { secretKeyRef: { name: the-race-creds, key: secret } }
