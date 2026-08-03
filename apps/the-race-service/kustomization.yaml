@@ -14,3 +14,4 @@ images:
   - name: ghcr.io/the-algovn/the-race-service
     newTag: main
     newName: ghcr.io/the-algovn/the-race-service
+    digest: sha256:17a964ac9887f99ea45be621d2cd3636442ceaad31ca9b19d1466af6ef9b0060
