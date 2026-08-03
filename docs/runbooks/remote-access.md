@@ -1,6 +1,6 @@
 # Remote access — SSH + kubectl over internet (cloudflared host tunnels)
 
-Two host-level tunnels, one per node VM, ansible-managed (`ansible/roles/cloudflared`,
+One host-level tunnel per node VM, ansible-managed (`ansible/roles/cloudflared`,
 tag `cloudflared`), independent of the cluster — SSH keeps working when k3s is down.
 ⚠️ Distinct from BOTH the in-cluster `algovn-k8s` tunnel (HTTP apps) and the legacy
 tunnel `algovn` (DEFUNCT since the Pi was retired 2026-07-15; hostnames dead pending
@@ -11,6 +11,7 @@ cleanup) — never reuse either name.
 | ssh-cp.algovn.com   | algovn-cp  | cloudflared-algovn-cp.service  | algovn VM localhost:22   |
 | k8s.algovn.com      | algovn-cp  | cloudflared-algovn-cp.service  | algovn VM localhost:6443 |
 | ssh-w1.algovn.com   | algovn-w1  | cloudflared-algovn-w1.service  | w1 VM localhost:22       |
+| ssh-w2.algovn.com   | algovn-w2  | cloudflared-algovn-w2.service  | w2 VM localhost:22       |
 | pve.algovn.com      | algovn-pve | cloudflared-algovn-pve.service | PVE host :8006 (web UI)  |
 | ssh-pve.algovn.com  | algovn-pve | cloudflared-algovn-pve.service | PVE host localhost:22    |
 
@@ -26,14 +27,14 @@ k8s client certs alone. Create them per cloudflare-access.md, then verify each
 hostname 302-redirects to the Access login.
 
 ## Client (Mac)
-- `ssh cp` / `ssh w1` — ProxyCommand via `cloudflared access ssh` in ~/.ssh/config;
+- `ssh cp` / `ssh w1` / `ssh w2` — ProxyCommand via `cloudflared access ssh` in ~/.ssh/config;
   first use per 24h session pops a browser OTP (once the Access apps exist; until
   then it connects directly).
 - kubectl: run `k8s-tunnel` (fish function, local listener 127.0.0.1:16443), then
   `kubectl --context algovn-remote ...` in another terminal.
 
 ## Provisioning / rebuild
-1. Credentials: `~/.secrets/cloudflared/{algovn-cp,algovn-w1}.json` on the MAC (the
+1. Credentials: `~/.secrets/cloudflared/{algovn-cp,algovn-w1,algovn-w2}.json` on the MAC (the
    ansible controller; the cloudflared role copies them to nodes) — NOT in git. If
    lost: delete + recreate tunnels (`cloudflared tunnel delete <t>`, `create <t>`,
    re-copy JSON) — recreating yields a NEW tunnel ID, so plain `route dns` fails
