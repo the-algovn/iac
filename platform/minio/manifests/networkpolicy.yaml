@@ -8,11 +8,13 @@ spec:
     matchLabels: { app: minio }
   policyTypes: [Ingress]
   ingress:
-    # S3 API from radio-service + tts-service + tempo, and the Kong ingress
-    # controller (public presigned GETs). The minio namespace itself must be
-    # here too: the bucket-creation Job runs in this namespace and talks to
-    # the Service, so omitting it silently wedged that Job in a retry loop
-    # for a week.
+    # S3 API from radio-service + tts-service + the-race-service + tempo, and
+    # the Kong ingress controller (public presigned GETs). The minio namespace
+    # itself must be here too: the bucket-creation Job runs in this namespace
+    # and talks to the Service, so omitting it silently wedged that Job in a
+    # retry loop for a week. the-race-service was the same story: absent here,
+    # its EnsureBucket failed at boot, which latches clips off for the life of
+    # the process and leaves every race silent while the AI still writes lines.
     - from:
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: minio }
@@ -20,6 +22,8 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: radio-service }
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: tts-service }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: the-race-service }
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: tracing }
         - namespaceSelector:
