@@ -1,0 +1,28 @@
+# nas.algovn.com moved OFF the hand-managed `algovn-pve` tunnel (which reached the
+# NAS via a LAN hop from the Proxmox host) onto the shared `algovn-k8s` tunnel, so
+# every public hostname enters through one gateway. The pve tunnel now carries only
+# pve.algovn.com and ssh-pve.algovn.com.
+#
+# ⚠️ This puts the storage admin UI behind Kong (currently replicaCount: 1) inside
+# the cluster that TrueNAS serves storage to — a k3s or Kong outage takes the NAS UI
+# with it. The break-glass path is the Proxmox console via pve.algovn.com.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nas
+  namespace: nas
+spec:
+  ingressClassName: kong
+  rules:
+    - host: nas.algovn.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: truenas
+                port:
+                  number: 443
+  tls:
+    - hosts: [nas.algovn.com]

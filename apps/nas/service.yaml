@@ -1,0 +1,18 @@
+# Selector-less: the TrueNAS web UI runs on the TrueNAS VM itself, outside the
+# cluster; the same-named Endpoints object supplies the address.
+#
+# konghq.com/protocol: https — unlike Jellyfin/Immich (plain HTTP on a nodeport),
+# the TrueNAS UI only speaks TLS on :443 (plain HTTP there returns 400, and :80
+# just 302s to https). Without this annotation Kong would talk cleartext to a TLS
+# port and every request would fail. Kong does not verify upstream certificates by
+# default, which is what the retired pve-tunnel route expressed as noTLSVerify.
+apiVersion: v1
+kind: Service
+metadata:
+  name: truenas
+  namespace: nas
+  annotations:
+    konghq.com/protocol: "https"
+spec:
+  ports:
+    - port: 443
