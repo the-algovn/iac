@@ -1,2 +1,5 @@
 - name: reload sysctl
   ansible.builtin.command: sysctl --system
+  # Reapplying sysctl values is idempotent; without this the handler reports
+  # `changed` on every run that touches the conf file.
+  changed_when: false

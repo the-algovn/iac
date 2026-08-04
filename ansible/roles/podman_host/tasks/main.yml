@@ -14,10 +14,15 @@
     state: directory
     mode: "0755"
 
+# check_mode: false because `command` is skipped in check mode, which would leave
+# podman_version undefined and make the assert below explode with
+# AnsibleUndefinedVariable — breaking the `--check` dry run that proves the k3s
+# roles do not target these VMs. Reading a version string changes nothing.
 - name: Assert podman is new enough for quadlets
   ansible.builtin.command: podman --version
   register: podman_version
   changed_when: false
+  check_mode: false
 
 - name: Fail if podman predates quadlet support
   ansible.builtin.assert:
