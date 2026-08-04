@@ -1,0 +1,18 @@
+# Host metrics for the two stateful-service VMs. They are not cluster members, so
+# there is no Service or Pod for the operator to discover — a static target list is
+# the only option. vmagent stays in-cluster and keeps CR-driven discovery, which is
+# why this is a CR in Argo rather than hand-written scrape config on the VM.
+# Phase 3 appends postgres_exporter (9187) and redis_exporter (9121) here.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: stateful-vms
+  namespace: monitoring
+spec:
+  jobName: stateful-vms
+  targetEndpoints:
+    - targets:
+        - 192.168.102.114:9100
+        - 192.168.102.115:9100
+      path: /metrics
+      scheme: http

@@ -1,0 +1,14 @@
+# Ubuntu's packaged node_exporter. Service name is prometheus-node-exporter and it
+# listens on :9100, which group_vars already opens to the three k3s node IPs.
+- name: Install prometheus-node-exporter
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable and start prometheus-node-exporter
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    state: started
+    enabled: true

@@ -46,3 +46,9 @@
   become: true
   roles:
     - { role: podman_host, tags: [podman] }
+
+- name: Host metrics on the stateful VMs
+  hosts: data:obs
+  become: true
+  roles:
+    - { role: node_exporter, tags: [node_exporter] }
