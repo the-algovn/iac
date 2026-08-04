@@ -4,6 +4,12 @@ metadata:
   name: video-claw-nfs
   namespace: video-claw
 spec:
+  # storageClassName: "" is required, not cosmetic. Omitting it lets the
+  # DefaultStorageClass admission plugin inject `local-path` (the cluster default),
+  # while the statically-provisioned nfs-pv.yaml has no class at all (""). Binding
+  # requires the two to match even when volumeName pins the PV, so without this the
+  # claim sits Pending forever and the Deployment never starts.
+  storageClassName: ""
   accessModes: [ReadWriteMany]
   resources: { requests: { storage: 1Ti } }
   volumeName: video-claw-nfs
