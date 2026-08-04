@@ -1,0 +1,28 @@
+- name: Install podman
+  ansible.builtin.apt:
+    name: podman
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# Quadlet unit directory. podman-system-generator reads *.container files here and
+# generates systemd units at daemon-reload time. Ubuntu 24.04 ships podman 4.9,
+# which supports quadlets (added in 4.4).
+- name: Ensure the quadlet unit directory exists
+  ansible.builtin.file:
+    path: /etc/containers/systemd
+    state: directory
+    mode: "0755"
+
+- name: Assert podman is new enough for quadlets
+  ansible.builtin.command: podman --version
+  register: podman_version
+  changed_when: false
+
+- name: Fail if podman predates quadlet support
+  ansible.builtin.assert:
+    that:
+      - podman_version.stdout.split(' ')[2] is version('4.4', '>=')
+    fail_msg: >-
+      podman {{ podman_version.stdout.split(' ')[2] }} is too old for quadlets
+      (needs >= 4.4). Every containerised service in phases 2 and 3 depends on them.

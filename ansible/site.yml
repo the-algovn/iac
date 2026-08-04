@@ -40,3 +40,9 @@
   become: true
   roles:
     - { role: firewall, tags: [firewall] }
+
+- name: Container runtime on the stateful VMs
+  hosts: data:obs
+  become: true
+  roles:
+    - { role: podman_host, tags: [podman] }

@@ -88,3 +88,31 @@ widening the ufw rule.
 
 Locked out? Recover from the Proxmox serial console: `ssh pve 'qm terminal 114'`,
 then `sudo ufw disable`.
+
+## Containers (quadlets)
+
+MinIO, Redpanda, VictoriaMetrics, Loki, Tempo and uptime-kuma run as podman
+**quadlets** — `*.container` files in `/etc/containers/systemd/` that
+`podman-system-generator` turns into real systemd units at `daemon-reload`. So
+`systemctl status loki` and `journalctl -u loki` work normally, and upgrades are a
+pinned-tag bump in the role, matching how the Helm values pinned them before.
+
+Postgres and Redis are NOT containers — they are native apt packages (PGDG and
+redis.io repos), because the database benefits from `pg_upgradecluster`, unattended
+security updates and the standard /etc/postgresql layout.
+
+Smoke-test the mechanism after any podman upgrade:
+
+    sudo tee /etc/containers/systemd/quadlet-smoke.container >/dev/null <<EOF
+    [Unit]
+    Description=Quadlet smoke test
+    [Container]
+    Image=docker.io/library/busybox:1.37
+    Exec=sleep 600
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+    sudo systemctl daemon-reload && sudo systemctl start quadlet-smoke.service
+    sudo systemctl is-active quadlet-smoke.service   # expect: active
+
+Then remove the file and `daemon-reload` again.
