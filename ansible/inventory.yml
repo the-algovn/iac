@@ -10,16 +10,15 @@ all:
             - { hostname: k8s.algovn.com, service: "tcp://localhost:6443" }
     agents:
       hosts:
+        # No cloudflared_tunnel on the agents: the per-worker tunnels (algovn-w1,
+        # algovn-w2) were retired 2026-08-04. Reach them by jumping through the
+        # control-plane node instead (`ssh w1` -> ProxyJump cp in ~/.ssh/config).
+        # Defining cloudflared_tunnel here is what makes the cloudflared role run,
+        # so leaving these out is what keeps the tunnels gone.
         algovn-w1:
           ansible_host: 192.168.102.112
-          cloudflared_tunnel: algovn-w1
-          cloudflared_ingress:
-            - { hostname: ssh-w1.algovn.com, service: "ssh://localhost:22" }
         algovn-w2:
           ansible_host: 192.168.102.113
-          cloudflared_tunnel: algovn-w2
-          cloudflared_ingress:
-            - { hostname: ssh-w2.algovn.com, service: "ssh://localhost:22" }
   vars:
     ansible_user: ducle
     k3s_version: "v1.36.2+k3s1"
