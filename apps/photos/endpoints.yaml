@@ -1,0 +1,12 @@
+# Immich on the TrueNAS VM. Verified reachable from a cluster node:
+# curl http://192.168.102.18:30041/api/server/ping -> {"res":"pong"}
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: immich
+  namespace: photos
+subsets:
+  - addresses:
+      - ip: 192.168.102.18
+    ports:
+      - port: 30041

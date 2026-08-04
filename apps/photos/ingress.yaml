@@ -1,0 +1,24 @@
+# photos.algovn.com used to be served by the `algovn-nas` cloudflared tunnel running
+# INSIDE the TrueNAS VM. That tunnel is retired; the hostname now rides the shared
+# `algovn-k8s` tunnel through Kong like every other app. TLS terminates on Kong's
+# wildcard-algovn-tls cert, so no secretName here (same as apps/xvideo).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: photos
+  namespace: photos
+spec:
+  ingressClassName: kong
+  rules:
+    - host: photos.algovn.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: immich
+                port:
+                  number: 30041
+  tls:
+    - hosts: [photos.algovn.com]

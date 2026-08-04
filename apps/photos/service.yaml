@@ -1,0 +1,11 @@
+# Selector-less on purpose: Immich runs on the TrueNAS VM, outside the cluster, so
+# there are no pods to select. The Endpoints object of the same name supplies the
+# address by hand. Same pattern as apps/xvideo (Jellyfin).
+apiVersion: v1
+kind: Service
+metadata:
+  name: immich
+  namespace: photos
+spec:
+  ports:
+    - port: 30041
