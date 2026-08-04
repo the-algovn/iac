@@ -5,11 +5,11 @@ All stateful workloads are migrating off k3s onto two Proxmox VMs. Design:
 (archive is local-only, not in git).
 
 | VM | VMID | IP | vCPU | RAM | disk | holds |
-|---|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|
 | algovn-data | 114 | 192.168.102.114 | 16 | 32G | 100G | postgres, redis, minio, redpanda |
 | algovn-obs | 115 | 192.168.102.115 | 4 | 8G | 64G | victoria-metrics, loki, tempo, uptime-kuma |
 
-## PV reclaim policy -- do not revert
+## PV reclaim policy — do not revert
 
 Every `local-path` PV was patched from `Delete` to `Retain` on 2026-08-04. This is
 the ONLY safety net protecting cluster data: there are no backups, and the Phase 3
@@ -32,7 +32,7 @@ Audit that none have drifted back:
 Expected: `0`. Anything else means a PV is unprotected.
 
 ⚠️ `Retain` means deleting a PVC leaves the PV `Released` and the data on disk,
-but the PV will NOT rebind to a new claim of the same name -- it must be deleted
+but the PV will NOT rebind to a new claim of the same name — it must be deleted
 and recreated, or its `claimRef` cleared. That is the intended trade: manual work
 instead of silent destruction.
 
@@ -64,8 +64,39 @@ disk, cloud-init's growpart grows the partition on first boot:
 
     ssh data 'df -h /'   # expect ~98G, not the template's 3.5G
 
-Reach them with `ssh data` / `ssh obs` (ProxyJump through `cp`; the laptop is not
-on the cluster LAN).
+Reach them with `ssh data` / `ssh obs`. The laptop is not on the cluster LAN, so
+both jump through `cp` — append to `~/.ssh/config` on the Mac (this is what makes
+the `ssh data 'df -h /'` check above work, and what ansible's `-J cp` relies on):
+
+    Host data
+      HostName 192.168.102.114
+      User ducle
+      ProxyJump cp
+
+    Host obs
+      HostName 192.168.102.115
+      User ducle
+      ProxyJump cp
+
+## Ansible
+
+    cd ansible
+    ansible-galaxy collection install -r requirements.yml   # once per controller
+    ansible-playbook site.yml --limit data,obs --check --diff   # dry run
+    ansible-playbook site.yml --limit data,obs
+
+The collection install is not optional on a fresh controller: with bare
+`ansible-core` the firewall role dies on `community.general.ufw` with a
+"couldn't resolve module/action" error that does not name the missing collection.
+
+Every host is reached via `-J cp` (set once in `inventory.yml` under `all.vars`),
+including `algovn` itself — no `~/.ssh/config` stanza matches the bare
+`192.168.102.x` addresses, so without the jump a `hosts: all` play fails
+UNREACHABLE.
+
+The `--check` run is the safety gate that proves the k3s roles do not target these
+VMs: expect `PLAY [k3s server]` and `PLAY [k3s agents]` to report
+`skipping: no hosts matched`.
 
 ## Firewall
 
@@ -73,21 +104,43 @@ ufw is ansible-managed on these VMs (unlike the k3s nodes, where it is hand-mana
 because it must exist before the agent joins). Rules come from
 `ansible/group_vars/{data,obs}.yml`:
 
-- `firewall_node_ports` -- reachable ONLY from the three k3s node IPs. Pods SNAT to
+- `firewall_node_ports` — reachable ONLY from the three k3s node IPs. Pods SNAT to
   their node, so those are the only legitimate in-cluster sources.
-- `firewall_lan_ports` -- reachable from the whole LAN. Currently 5432 (the
+- `firewall_lan_ports` — reachable from the whole LAN. Currently 5432 (the
   deliberate psql/DBeaver admin path from postgres.md) and 9001 (MinIO console).
 
-To open a port for a new service, add it to the group var and re-run
-`ansible-playbook site.yml --limit data,obs --tags firewall`. Do not run `ufw` by
-hand -- it will be reverted on the next play.
+To OPEN a port, add it to the group var and re-run
+`ansible-playbook site.yml --limit data,obs --tags firewall`.
+
+⚠️ **The role is additive only — it never reconciles.** `community.general.ufw`
+issues `ufw allow`; it does not diff the live rule set against the group vars. Two
+consequences:
+
+- **Removing a port from `firewall_node_ports` does NOT close it.** The rule
+  survives every subsequent play. Close it by hand, once per source IP:
+
+      ssh data 'sudo ufw delete allow from <ip> to any port <n> proto tcp'
+
+  For a `firewall_node_ports` entry that is all three k3s node IPs
+  (`.111`, `.112`, `.113`); for a `firewall_lan_ports` entry it is
+  `from 192.168.102.0/24`. Then confirm with `sudo ufw status | grep <n>`.
+- **A hand-added rule is NOT reverted on the next play.** It persists until
+  deleted with the same command. Keeping the group vars authoritative is a
+  convention, not something the tooling enforces.
 
 Redpanda has no authentication, so the node-IPs-only rule is the entirety of its
 access control. If it ever needs wider reach, enable SASL first rather than
-widening the ufw rule.
+widening the ufw rule. **This holds only because the quadlets use `Network=host`** —
+see "ufw does not govern published ports" below before changing any container's
+networking mode.
 
-Locked out? Recover from the Proxmox serial console: `ssh pve 'qm terminal 114'`,
-then `sudo ufw disable`.
+Locked out? Recover from the Proxmox serial console — **114 is data, 115 is obs**,
+and you cannot SSH in to find out which you broke:
+
+    ssh pve 'qm terminal 114'    # algovn-data
+    ssh pve 'qm terminal 115'    # algovn-obs
+
+then log in and `sudo ufw disable`. (`qm terminal` exits with `Ctrl-O`.)
 
 ## Containers (quadlets)
 
@@ -100,6 +153,55 @@ pinned-tag bump in the role, matching how the Helm values pinned them before.
 Postgres and Redis are NOT containers — they are native apt packages (PGDG and
 redis.io repos), because the database benefits from `pg_upgradecluster`, unattended
 security updates and the standard /etc/postgresql layout.
+
+### ufw does not govern published ports — use `Network=host`
+
+**Every quadlet on these VMs MUST use `Network=host` and bind its real port
+directly. Do not use `PublishPort`.** Measured 2026-08-04; this is not a style
+preference.
+
+A published port is DNAT'd in `nat/PREROUTING` (`NETAVARK-HOSTPORT-DNAT` →
+`DNAT --to-destination 10.88.0.x`) *before* the routing decision. The packet's
+destination is then the container, not the host, so it is **forwarded, not
+delivered locally** — it never traverses `filter/INPUT`, where the entire
+`firewall_node_ports` rule set lives. It lands in `FORWARD`, which jumps
+`NETAVARK_FORWARD` **before** every ufw chain:
+
+    -A FORWARD -m comment --comment "netavark firewall plugin rules" -j NETAVARK_FORWARD
+    -A FORWARD -j ufw-before-forward
+    ...
+
+and that chain accepts only traffic already ESTABLISHED toward `10.88.0.0/16` or
+sourced *from* it. A new inbound connection matches neither, so it falls through to
+`-P FORWARD DROP`.
+
+Net effect: a `PublishPort` service is unreachable from the k3s nodes **even with an
+explicit ufw ALLOW for that port**, and adding the rule does nothing. The failure is
+a silent 8-second connect timeout with no log line anywhere — expensive to debug.
+
+`Network=host` sidesteps all of it: the container binds the host address, so traffic
+is delivered locally, hits `filter/INPUT`, and the already-proven ufw rules apply
+unchanged — exactly as they do for the native `node_exporter`. These are
+single-tenant VMs running one instance of each service, so container network
+isolation buys nothing to offset the cost.
+
+Rejected alternatives: `DEFAULT_FORWARD_POLICY=ACCEPT` + `ufw route allow` (netavark's
+chain runs first, so the route rules may never be consulted) and binding
+`PublishPort` to a host IP (still DNAT, still forwarded).
+
+**Two-source check** — rerun this whenever a quadlet's networking changes. `w1` is a
+k3s node (in `firewall_node_ports`' allow list); `pve` is on the LAN but is not:
+
+    # from a k3s node — expect code=200/404, exit=0, sub-second
+    ssh w1 'curl -s -o /dev/null -m 8 -w "code=%{http_code} time=%{time_total}\n" http://192.168.102.114:<port>/'
+    # from a non-node LAN host — expect code=000, exit=28, ~8s (dropped)
+    ssh pve 'curl -s -o /dev/null -m 8 -w "code=%{http_code} time=%{time_total}\n" http://192.168.102.114:<port>/'
+
+The timing discriminates: ~8 s with exit 28 is a **drop**; sub-second exit 7 is a
+**refusal** (reached the host, nothing listening); a response code means it got
+through. Two 8-second timeouts where the k3s node should have succeeded is the
+signature of the `PublishPort` trap above — check `sudo iptables -t nat -S | grep <port>`
+for a DNAT rule.
 
 Smoke-test the mechanism after any podman upgrade:
 
@@ -115,4 +217,43 @@ Smoke-test the mechanism after any podman upgrade:
     sudo systemctl daemon-reload && sudo systemctl start quadlet-smoke.service
     sudo systemctl is-active quadlet-smoke.service   # expect: active
 
-Then remove the file and `daemon-reload` again.
+Tear it down completely — stopping a quadlet whose container is already gone leaves
+a phantom `not-found failed` unit that `systemctl --failed` reports forever (both VMs
+carried one from the Phase 1 smoke test until 2026-08-04):
+
+    sudo systemctl stop quadlet-smoke.service
+    sudo rm -f /etc/containers/systemd/quadlet-smoke.container
+    sudo systemctl daemon-reload
+    sudo systemctl reset-failed quadlet-smoke.service
+    sudo podman rm -af && sudo podman rmi -a
+    sudo systemctl --failed --no-legend    # expect: no output
+
+## Monitoring
+
+Both VMs run `node_exporter` (ansible role `node_exporter`, tag `node_exporter`) on
+**:9100**, opened to the k3s node IPs only. They are not cluster members, so there is
+no Service or Pod for the operator to discover — targets are listed statically in
+`platform/monitoring/manifests/vmstaticscrape-stateful-vms.yaml`, a `VMStaticScrape`
+CR under Argo, job name **`stateful-vms`**. Phase 3 appends `postgres_exporter`
+(9187) and `redis_exporter` (9121) to the same CR.
+
+Check the targets are up:
+
+    kubectl --context algovn-remote -n monitoring port-forward svc/vmsingle-vm 8428:8428
+    # in another terminal:
+    curl -sG 'http://localhost:8428/api/v1/query' \
+      --data-urlencode 'query=up{job="stateful-vms"}' | jq '.data.result'
+
+Expect two series, both `"1"`, for `192.168.102.114:9100` and `192.168.102.115:9100`.
+
+Raw check from a k3s node, bypassing the cluster entirely:
+
+    ssh w1 'curl -s -o /dev/null -w "%{http_code}\n" http://192.168.102.114:9100/metrics'   # 200
+
+**If the targets never appear at all** (no series, not even `0`), the likely cause is
+vmagent not selecting the CR rather than anything on the VMs:
+
+    kubectl --context algovn-remote -n monitoring get vmagent -o jsonpath='{.items[*].spec.selectAllByDefault}'
+
+If that is not `true`, vmagent only picks up CRs matching its explicit selectors and
+this one is ignored silently — the VMs stay invisible with no error anywhere.
