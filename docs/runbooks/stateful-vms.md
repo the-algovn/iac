@@ -225,8 +225,15 @@ carried one from the Phase 1 smoke test until 2026-08-04):
     sudo rm -f /etc/containers/systemd/quadlet-smoke.container
     sudo systemctl daemon-reload
     sudo systemctl reset-failed quadlet-smoke.service
-    sudo podman rm -af && sudo podman rmi -a
+    sudo podman rm -f quadlet-smoke
+    sudo podman rmi docker.io/library/busybox:1.37
     sudo systemctl --failed --no-legend    # expect: no output
+
+⚠️ Name the probe explicitly, as above. Never `podman rm -af && podman rmi -a` here:
+from Phase 2 this VM runs MinIO, Redpanda, VictoriaMetrics, Loki, Tempo and
+uptime-kuma as quadlets, `rm -af` force-removes RUNNING containers, and quadlet units
+default to `Restart=no` — so a blanket teardown takes all six down until someone
+restarts them by hand and re-pulls every image.
 
 ## Monitoring
 
