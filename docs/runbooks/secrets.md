@@ -77,8 +77,19 @@ Recreate after a bao rebuild:
           secret_id_ttl=0 token_ttl=20m token_max_ttl=1h
     '
 
-then re-export role_id/secret_id as above. The `ansible-read` policy must be
-recreated first if the whole vault was rebuilt.
+then re-copy the new credential pair — PVE host → controller, one file each:
+
+    mkdir -p ~/.secrets/openbao && chmod 700 ~/.secrets/openbao
+    ssh pve 'cat /root/.openbao/ansible.role_id'   > ~/.secrets/openbao/ansible.role_id
+    ssh pve 'cat /root/.openbao/ansible.secret_id' > ~/.secrets/openbao/ansible.secret_id
+    chmod 600 ~/.secrets/openbao/ansible.*
+
+The `ansible-read` policy must be recreated first if the whole vault was rebuilt.
+
+⚠️ `pipelining = True` in `ansible/ansible.cfg` is load-bearing here: the `uri` body
+carries role_id and secret_id, and without pipelining ansible writes the rendered
+module to `~/.ansible/tmp/` **on the managed node** before running it. `no_log`
+suppresses logging, not transfer. Do not disable pipelining.
 
 ## OpenBao operations
 

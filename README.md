@@ -14,3 +14,4 @@ Shared Postgres live (CloudNativePG 1.30.0, PG 18) — 2026-07-12, runbook docs/
 Remote access (ssh + kubectl) via cloudflared host tunnels — 2026-07-13, see docs/runbooks/remote-access.md; Access gate pending.
 AuthN/Z foundation live (Zitadel chart 9.34.0 @ id.algovn.com + OpenFGA 0.3.10, Kong jwt edge gate) — 2026-07-13, conventions docs/authnz-conventions.md. pg backups deliberately descoped (postgres.md warning stands); barman-cloud plugin installed but unconfigured.
 api.algovn.com gateway live (api-control-plane + Kafka (Redpanda) events bus + demo-service tenant) — 2026-07-14, conventions docs/api-conventions.md, runbook docs/runbooks/api-control-plane.md.
+Stateful-services VM migration phase 1 (algovn-data + algovn-obs built, ansible-managed: kernel tuning, ufw, podman/quadlets, node_exporter, OpenBao AppRole) — 2026-08-04, runbook docs/runbooks/stateful-vms.md. No service data moved yet; phases 2 and 3 pending.
