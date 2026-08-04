@@ -9,3 +9,4 @@ patches:
   - path: patches/params-cm.yaml
   - path: patches/oidc-cm.yaml
   - path: patches/rbac-cm.yaml
+  - path: patches/exclusions-cm.yaml

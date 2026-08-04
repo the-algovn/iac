@@ -1,0 +1,68 @@
+# Argo CD's shipped argocd-cm (upstream install.yaml) excludes Endpoints and
+# EndpointSlice by default "to reduce the number of watched events and UI clutter".
+# That silently breaks the selector-less-Service + manual-Endpoints pattern used to
+# route LAN-hosted origins (TrueNAS: Immich, Jellyfin, the NAS UI) through Kong:
+# Argo skips the Endpoints object entirely, reports the Application Synced/Healthy
+# anyway, and Kong answers 503 because the upstream has no address. The only clue is
+# an ExcludedResourceWarning condition on the Application.
+#
+# apps/xvideo hid this for months — its live Endpoints was created by a hand-run
+# `kubectl apply` (managedFields manager: kubectl-client-side-apply), NOT by Argo, so
+# the manifest in git was decorative and a cluster rebuild would have lost it.
+#
+# This re-declares the upstream list verbatim MINUS that first block, so Endpoints
+# and EndpointSlice become genuinely GitOps-managed. Keep the rest in sync if the
+# Argo version in kustomization.yaml is bumped and upstream changes its defaults.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  resource.exclusions: |
+    ### Internal Kubernetes resources excluded reduce the number of watched events
+    - apiGroups:
+      - coordination.k8s.io
+      kinds:
+      - Lease
+    ### Internal Kubernetes Authz/Authn resources excluded reduce the number of watched events
+    - apiGroups:
+      - authentication.k8s.io
+      - authorization.k8s.io
+      kinds:
+      - SelfSubjectReview
+      - TokenReview
+      - LocalSubjectAccessReview
+      - SelfSubjectAccessReview
+      - SelfSubjectRulesReview
+      - SubjectAccessReview
+    ### Intermediate Certificate Request excluded reduce the number of watched events
+    - apiGroups:
+      - certificates.k8s.io
+      kinds:
+      - CertificateSigningRequest
+    - apiGroups:
+      - cert-manager.io
+      kinds:
+      - CertificateRequest
+    ### Cilium internal resources excluded reduce the number of watched events and UI Clutter
+    - apiGroups:
+      - cilium.io
+      kinds:
+      - CiliumIdentity
+      - CiliumEndpoint
+      - CiliumEndpointSlice
+    ### Kyverno intermediate and reporting resources excluded reduce the number of watched events and improve performance
+    - apiGroups:
+      - kyverno.io
+      - reports.kyverno.io
+      - wgpolicyk8s.io
+      kinds:
+      - PolicyReport
+      - ClusterPolicyReport
+      - EphemeralReport
+      - ClusterEphemeralReport
+      - AdmissionReport
+      - ClusterAdmissionReport
+      - BackgroundScanReport
+      - ClusterBackgroundScanReport
+      - UpdateRequest
