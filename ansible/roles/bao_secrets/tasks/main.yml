@@ -5,7 +5,13 @@
 # but the data/obs VMs can. A controller-side hashi_vault lookup would fail.
 #
 # role_id/secret_id are read from files on the CONTROLLER via lookup() — a local
-# file read, no network — so the material never lands on the managed node or in git.
+# file read, no network — so the material never lands in git.
+#
+# They DO cross to the managed node: the templated body is part of the uri module
+# payload, and uri runs there. `no_log` suppresses logging, not transfer. What keeps
+# it off the node's DISK is `pipelining = True` in ansible.cfg — without it the
+# rendered module (secret_id and all) is written to ~/.ansible/tmp/ansible-tmp-*/
+# on the managed node before execution. Do not disable pipelining.
 - name: Log in to OpenBao with the ansible AppRole
   ansible.builtin.uri:
     url: "{{ bao_addr }}/v1/auth/approle/login"
