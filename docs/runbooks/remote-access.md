@@ -1,20 +1,19 @@
 # Remote access — SSH + kubectl over internet (cloudflared host tunnels)
 
-One host-level tunnel per node VM, ansible-managed (`ansible/roles/cloudflared`,
-tag `cloudflared`), independent of the cluster — SSH keeps working when k3s is down.
-⚠️ Distinct from BOTH the in-cluster `algovn-k8s` tunnel (HTTP apps) and the legacy
-tunnel `algovn` (DEFUNCT since the Pi was retired 2026-07-15; hostnames dead pending
-cleanup) — never reuse either name.
+**Exactly three tunnels exist** (consolidated 2026-08-04). Two are host-level and
+independent of the cluster, so SSH keeps working when k3s is down; the third is the
+in-cluster tunnel that fronts every public HTTP hostname via Kong.
 
-| Hostname            | Tunnel     | Unit (on node)                 | Target                   |
-|---------------------|------------|--------------------------------|--------------------------|
-| ssh-cp.algovn.com   | algovn-cp  | cloudflared-algovn-cp.service  | algovn VM localhost:22   |
-| k8s.algovn.com      | algovn-cp  | cloudflared-algovn-cp.service  | algovn VM localhost:6443 |
-| ssh-w1.algovn.com   | algovn-w1  | cloudflared-algovn-w1.service  | w1 VM localhost:22       |
-| ssh-w2.algovn.com   | algovn-w2  | cloudflared-algovn-w2.service  | w2 VM localhost:22       |
-| pve.algovn.com      | algovn-pve | cloudflared-algovn-pve.service | PVE host :8006 (web UI)  |
-| ssh-pve.algovn.com  | algovn-pve | cloudflared-algovn-pve.service | PVE host localhost:22    |
-| (hostnames TBD)     | algovn-nas | (unknown — see below)          | TrueNAS VM 125 (.18)     |
+| Hostname            | Tunnel     | Unit / workload                 | Target                    |
+|---------------------|------------|---------------------------------|---------------------------|
+| ssh-cp.algovn.com   | algovn-cp  | cloudflared-algovn-cp.service   | algovn VM localhost:22    |
+| k8s.algovn.com      | algovn-cp  | cloudflared-algovn-cp.service   | algovn VM localhost:6443  |
+| pve.algovn.com      | algovn-pve | cloudflared-algovn-pve.service  | PVE host :8006 (web UI)   |
+| ssh-pve.algovn.com  | algovn-pve | cloudflared-algovn-pve.service  | PVE host localhost:22     |
+| algovn.com + *.algovn.com | algovn-k8s | Deployment cloudflared/cloudflared (2 replicas) | Kong gateway |
+
+`algovn-cp` is ansible-managed (`ansible/roles/cloudflared`, tag `cloudflared`); the
+role only runs for a host that defines `cloudflared_tunnel` in `ansible/inventory.yml`.
 
 `algovn-pve` runs on the Proxmox HOST and is hand-managed (the host is outside the
 ansible inventory): config `/etc/cloudflared/algovn-pve.yml`, unit
@@ -22,30 +21,53 @@ ansible inventory): config `/etc/cloudflared/algovn-pve.yml`, unit
 (the PVE web UI is root on everything) — if the Access app is ever missing, stop the
 unit first, fix the app, then start it.
 
-`algovn-nas` (ID `8ae0b768-4b07-4869-9342-a412e9febca4`, created 2026-08-01) is a
-THIRD hand-managed tunnel, and it is **not on the PVE host and not in the ansible
-inventory** — it runs inside the **TrueNAS VM** (VMID 125, `192.168.102.18`). Verified
-2026-08-04 from `cloudflared tunnel info`: the connector's origin IP
-`2405:…:be24:11ff:fe8a:6515` is EUI-64-derived from MAC `bc:24:11:8a:65:15`, which
-`qm config 125` confirms is that VM's `net0`. Its hostnames, config path and unit name
-are NOT recorded here because TrueNAS has no QEMU guest agent (`qm guest exec` fails)
-and nothing in this repo manages it — fill them in from the TrueNAS side. Until then,
-treat this row as a known documentation gap, not as an absent tunnel.
+## Worker nodes have NO tunnel — jump through the control plane
+`algovn-w1` and `algovn-w2` tunnels were deleted 2026-08-04, along with the
+`ssh-w1`/`ssh-w2` hostnames. Reach the workers by jumping through `cp`, which works
+identically on and off the cluster LAN:
 
-⚠️ Access gate PENDING (as of 2026-07-13): the three Access apps (email OTP,
-admin-only) are not yet created — until then the endpoints rely on SSH key auth /
-k8s client certs alone. Create them per cloudflare-access.md, then verify each
-hostname 302-redirects to the Access login.
+    Host w1
+      HostName 192.168.102.112
+      User ducle
+      ProxyJump cp
+
+Do NOT re-add `cloudflared_tunnel` to the agents in `ansible/inventory.yml` — that
+host var is the only thing that makes the cloudflared role run, so its absence is
+what keeps the tunnels gone.
+
+## TrueNAS services go through Kong, not their own tunnel
+The `algovn-nas` tunnel (which ran inside the TrueNAS VM) was deleted 2026-08-04 and
+`nas.algovn.com` was removed from the `algovn-pve` config. Everything TrueNAS-hosted
+now enters through `algovn-k8s` → Kong, using a selector-less Service plus a manual
+`Endpoints` object pointing at `192.168.102.18`:
+
+| Hostname          | App dir       | Origin                    |
+|-------------------|---------------|---------------------------|
+| photos.algovn.com | `apps/photos` | Immich, `.18:30041`       |
+| xvideo.algovn.com | `apps/xvideo` | Jellyfin, `.18:30013`     |
+| nas.algovn.com    | `apps/nas`    | TrueNAS UI, `.18:443` (HTTPS upstream — needs `konghq.com/protocol: https` on the Service) |
+
+⚠️ This makes Kong (currently `replicaCount: 1`) a single point of failure for the
+NAS UI. Break-glass is the Proxmox console at `pve.algovn.com`, on the separate
+hand-managed tunnel.
+
+⚠️ Argo CD excludes `Endpoints`/`EndpointSlice` by default, which silently skips these
+objects and leaves Kong answering 503 while the Application still reads Synced —
+`platform/argocd/patches/exclusions-cm.yaml` re-includes them. Don't drop that patch.
+
+## Access gating (verified 2026-08-04)
+`pve`, `ssh-pve`, `ssh-cp`, `k8s` all 302 to `the-thing-universe.cloudflareaccess.com`.
+`nas.algovn.com` and `photos.algovn.com` are NOT Access-gated — they rely on the
+TrueNAS and Immich logins respectively. See cloudflare-access.md.
 
 ## Client (Mac)
-- `ssh cp` / `ssh w1` / `ssh w2` — ProxyCommand via `cloudflared access ssh` in ~/.ssh/config;
-  first use per 24h session pops a browser OTP (once the Access apps exist; until
-  then it connects directly).
+- `ssh cp` / `ssh pve` — ProxyCommand via `cloudflared access ssh` in ~/.ssh/config.
+- `ssh w1` / `ssh w2` — ProxyJump through `cp` (no tunnel of their own).
 - kubectl: run `k8s-tunnel` (fish function, local listener 127.0.0.1:16443), then
   `kubectl --context algovn-remote ...` in another terminal.
 
 ## Provisioning / rebuild
-1. Credentials: `~/.secrets/cloudflared/{algovn-cp,algovn-w1,algovn-w2}.json` on the MAC (the
+1. Credentials: `~/.secrets/cloudflared/{algovn-cp,algovn-pve}.json` on the MAC (the
    ansible controller; the cloudflared role copies them to nodes) — NOT in git. If
    lost: delete + recreate tunnels (`cloudflared tunnel delete <t>`, `create <t>`,
    re-copy JSON) — recreating yields a NEW tunnel ID, so plain `route dns` fails
@@ -58,6 +80,10 @@ hostname 302-redirects to the Access login.
 ## Debugging
 - Node side: `systemctl status cloudflared-<tunnel>`, `journalctl -u cloudflared-<tunnel> -n 50`
   — healthy log shows ≥1 "Registered tunnel connection".
-- Account view: `cloudflared tunnel list` / `cloudflared tunnel info <t>` (on the Pi).
-- OTP email not arriving → cloudflare-access.md.
-- `curl https://<host>/` → must 302 to the Access login; 200 = gate missing.
+- Account view: `cloudflared tunnel list` / `cloudflared tunnel info <t>` from the Mac.
+  `tunnel info` prints each connector's ORIGIN IP — on this LAN those are EUI-64 IPv6
+  addresses, so `2405:…:be24:11ff:feXX:YYZZ` decodes to MAC `bc:24:11:XX:YY:ZZ`, which
+  `qm config <vmid>` matches to a VM. That is how a tunnel's host is identified.
+- `curl https://<host>/` → 302 to the Access login means gated; 200 = no gate.
+- Kong route not working? Check the Endpoints object exists
+  (`kubectl get endpoints -n <ns>`); a 503 with a Synced Application means it does not.
