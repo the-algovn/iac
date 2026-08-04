@@ -1,0 +1,5 @@
+bao_addr: http://192.168.102.124:8200
+# expanduser is required: ansible's `file` lookup does NOT expand a bare `~`, and a
+# literal "~/.secrets/..." path fails at runtime with a file-not-found error.
+bao_role_id_file: "{{ '~/.secrets/openbao/ansible.role_id' | expanduser }}"
+bao_secret_id_file: "{{ '~/.secrets/openbao/ansible.secret_id' | expanduser }}"

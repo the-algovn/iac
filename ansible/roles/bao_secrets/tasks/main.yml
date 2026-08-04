@@ -1,0 +1,31 @@
+# Logs in to OpenBao and exposes `bao_token` for the rest of the play.
+#
+# The uri module runs ON THE MANAGED NODE, which is the point: the ansible
+# controller (the Mac) is not on the cluster LAN and cannot reach 192.168.102.124,
+# but the data/obs VMs can. A controller-side hashi_vault lookup would fail.
+#
+# role_id/secret_id are read from files on the CONTROLLER via lookup() — a local
+# file read, no network — so the material never lands on the managed node or in git.
+- name: Log in to OpenBao with the ansible AppRole
+  ansible.builtin.uri:
+    url: "{{ bao_addr }}/v1/auth/approle/login"
+    method: POST
+    body_format: json
+    body:
+      role_id: "{{ lookup('file', bao_role_id_file) | trim }}"
+      secret_id: "{{ lookup('file', bao_secret_id_file) | trim }}"
+    status_code: 200
+  register: bao_login
+  no_log: true
+
+- name: Expose the client token to the rest of the play
+  ansible.builtin.set_fact:
+    bao_token: "{{ bao_login.json.auth.client_token }}"
+  no_log: true
+
+- name: Assert the token looks usable
+  ansible.builtin.assert:
+    that:
+      - bao_token is defined
+      - bao_token | length > 0
+    fail_msg: OpenBao AppRole login returned no client token

@@ -51,6 +51,35 @@ kubectl -n external-secrets create secret generic eso-bao-approle --from-file=ro
 rm -P role-id secret-id
 ```
 
+## Ansible access to OpenBao
+
+The data/obs VMs run services configured from OpenBao values (Postgres role
+passwords, Redis requirepass, MinIO root credentials), so ansible needs read
+access. It uses AppRole `ansible` with policy `ansible-read` — read-only on
+`secret/data/algovn/*`, the same prefix as `eso-read`.
+
+Credentials live at `/root/.openbao/ansible.{role_id,secret_id}` on the PVE host
+(next to the ESO pair) and are copied to the controller at
+`~/.secrets/openbao/ansible.{role_id,secret_id}`, mode 0600. Never in git.
+
+The `bao_secrets` role performs the login and sets `bao_token` for the rest of the
+play. It uses `ansible.builtin.uri`, which runs ON THE MANAGED NODE — deliberate,
+because the controller (the Mac) is not on the cluster LAN and cannot reach
+`192.168.102.124:8200`, while the VMs can. A controller-side `hashi_vault` lookup
+would fail.
+
+Recreate after a bao rebuild:
+
+    ssh pve '
+      TOKEN=$(cat /root/.openbao/root.token)
+      pct exec 124 -- env BAO_ADDR=http://127.0.0.1:8200 BAO_TOKEN=$TOKEN \
+        bao write auth/approle/role/ansible token_policies=ansible-read \
+          secret_id_ttl=0 token_ttl=20m token_max_ttl=1h
+    '
+
+then re-export role_id/secret_id as above. The `ansible-read` policy must be
+recreated first if the whole vault was rebuilt.
+
 ## OpenBao operations
 
 - **Unseal:** automatic at host boot — `openbao-unseal.service` on the PVE host reads
