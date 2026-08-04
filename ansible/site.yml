@@ -23,6 +23,12 @@
   roles:
     - { role: net_tuning, tags: [net_tuning] }
 
+- name: Data VM kernel tuning
+  hosts: data
+  become: true
+  roles:
+    - { role: db_tuning, tags: [db_tuning] }
+
 - name: cloudflared host tunnels (remote access)
   hosts: all
   become: true

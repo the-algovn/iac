@@ -1,0 +1,9 @@
+- name: Database-host kernel tuning (overrides base's k8s swappiness)
+  ansible.builtin.copy:
+    src: 99-zz-db-tuning.conf
+    dest: /etc/sysctl.d/99-zz-db-tuning.conf
+    mode: "0644"
+  notify: reload sysctl
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

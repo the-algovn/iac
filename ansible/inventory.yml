@@ -19,6 +19,26 @@ all:
           ansible_host: 192.168.102.112
         algovn-w2:
           ansible_host: 192.168.102.113
+    # Stateful-service VMs. Deliberately NOT in `agents` — that group is what runs
+    # the k3s_agent role, and these must never join the cluster. See
+    # docs/runbooks/stateful-vms.md.
+    data:
+      hosts:
+        algovn-data:
+          ansible_host: 192.168.102.114
+          ansible_ssh_common_args: '-J cp'
+    obs:
+      hosts:
+        algovn-obs:
+          ansible_host: 192.168.102.115
+          ansible_ssh_common_args: '-J cp'
   vars:
     ansible_user: ducle
     k3s_version: "v1.36.2+k3s1"
+    lan_cidr: 192.168.102.0/24
+    # Pods SNAT to their node's IP, so these are the only in-cluster source
+    # addresses that ever arrive at the data/obs VMs.
+    k3s_node_ips:
+      - 192.168.102.111
+      - 192.168.102.112
+      - 192.168.102.113
