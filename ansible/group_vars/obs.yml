@@ -1,0 +1,6 @@
+# 8428 VictoriaMetrics, 3100 Loki, 3200 Tempo HTTP, 4317/4318 Tempo OTLP,
+# 3001 uptime-kuma, 9100 node_exporter.
+firewall_node_ports: [3001, 3100, 3200, 4317, 4318, 8428, 9100]
+
+# Nothing on the obs VM needs LAN-wide access; its UIs are published through Kong.
+firewall_lan_ports: []

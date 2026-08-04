@@ -66,3 +66,25 @@ disk, cloud-init's growpart grows the partition on first boot:
 
 Reach them with `ssh data` / `ssh obs` (ProxyJump through `cp`; the laptop is not
 on the cluster LAN).
+
+## Firewall
+
+ufw is ansible-managed on these VMs (unlike the k3s nodes, where it is hand-managed
+because it must exist before the agent joins). Rules come from
+`ansible/group_vars/{data,obs}.yml`:
+
+- `firewall_node_ports` -- reachable ONLY from the three k3s node IPs. Pods SNAT to
+  their node, so those are the only legitimate in-cluster sources.
+- `firewall_lan_ports` -- reachable from the whole LAN. Currently 5432 (the
+  deliberate psql/DBeaver admin path from postgres.md) and 9001 (MinIO console).
+
+To open a port for a new service, add it to the group var and re-run
+`ansible-playbook site.yml --limit data,obs --tags firewall`. Do not run `ufw` by
+hand -- it will be reverted on the next play.
+
+Redpanda has no authentication, so the node-IPs-only rule is the entirety of its
+access control. If it ever needs wider reach, enable SASL first rather than
+widening the ufw rule.
+
+Locked out? Recover from the Proxmox serial console: `ssh pve 'qm terminal 114'`,
+then `sudo ufw disable`.

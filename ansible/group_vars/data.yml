@@ -1,0 +1,8 @@
+# Ports reachable ONLY from the three k3s node IPs (pods SNAT to their node).
+# 9100 is node_exporter, scraped by vmagent from inside the cluster.
+firewall_node_ports: [6379, 9000, 9092, 9644, 9100]
+
+# Ports reachable from the whole LAN. 5432 preserves the deliberate psql/DBeaver
+# admin path recorded in docs/runbooks/postgres.md; 9001 is the MinIO console.
+# The LAN supersets the node IPs, so these are not repeated above.
+firewall_lan_ports: [5432, 9001]

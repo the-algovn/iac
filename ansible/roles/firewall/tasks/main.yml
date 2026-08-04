@@ -1,0 +1,43 @@
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Default deny incoming
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Default allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+# Must precede `state: enabled` below, or enabling ufw drops the SSH session
+# ansible is running over and every subsequent task fails UNREACHABLE.
+- name: Rate-limit SSH from the LAN
+  community.general.ufw:
+    rule: limit
+    port: "22"
+    proto: tcp
+    src: "{{ lan_cidr }}"
+
+- name: Allow service ports from the k3s nodes only
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.1 }}"
+    proto: tcp
+    src: "{{ item.0 }}"
+  loop: "{{ k3s_node_ips | product(firewall_node_ports) | list }}"
+
+- name: Allow admin ports from the LAN
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    src: "{{ lan_cidr }}"
+  loop: "{{ firewall_lan_ports }}"
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled

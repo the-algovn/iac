@@ -34,3 +34,9 @@
   become: true
   roles:
     - { role: cloudflared, tags: [cloudflared], when: cloudflared_tunnel is defined }
+
+- name: Firewall on the stateful VMs
+  hosts: data:obs
+  become: true
+  roles:
+    - { role: firewall, tags: [firewall] }
