@@ -26,14 +26,19 @@ all:
       hosts:
         algovn-data:
           ansible_host: 192.168.102.114
-          ansible_ssh_common_args: '-J cp'
     obs:
       hosts:
         algovn-obs:
           ansible_host: 192.168.102.115
-          ansible_ssh_common_args: '-J cp'
   vars:
     ansible_user: ducle
+    # The controller (this Mac) is not on the cluster LAN, so EVERY host is reached
+    # by jumping through `cp` (~/.ssh/config: cloudflared ProxyCommand to
+    # ssh-cp.algovn.com). Without this, a `hosts: all` play fails UNREACHABLE on
+    # algovn/w1/w2 — no ssh_config stanza matches their bare 192.168.102.x address.
+    # algovn jumps through itself, which is redundant but works and keeps this
+    # uniform; `ansible_host` must stay an IP because the k3s templates render it.
+    ansible_ssh_common_args: '-J cp'
     k3s_version: "v1.36.2+k3s1"
     lan_cidr: 192.168.102.0/24
     # Pods SNAT to their node's IP, so these are the only in-cluster source
