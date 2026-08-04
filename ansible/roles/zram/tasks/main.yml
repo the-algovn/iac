@@ -1,8 +1,15 @@
-- name: Install systemd zram generator (+ modules-extra — cloud-image kernels ship zram there)
+# linux-image-generic, NOT linux-modules-extra-{{ ansible_kernel }}: cloud-image
+# kernels ship zram.ko in modules-extra, and the version-pinned name is correct only
+# for the kernel running at play time — unattended-upgrades then installs a newer
+# kernel and after the reboot zram silently stops (verified dead on both prod nodes
+# 2026-08-03). linux-image-generic is the tracking metapackage: it Depends on
+# linux-modules-extra-<abi>, so apt keeps them in lockstep. The base image ships
+# linux-image-virtual, which depends on the kernel image ALONE — hence the drift.
+- name: Install systemd zram generator (+ linux-image-generic for kernel-tracked modules-extra)
   ansible.builtin.apt:
     name:
       - systemd-zram-generator
-      - "linux-modules-extra-{{ ansible_kernel }}"
+      - linux-image-generic
     state: present
 
 - name: Configure zram0
