@@ -1,2 +1,9 @@
+# Install on a fresh controller before running site.yml:
+#   ansible-galaxy collection install -r requirements.yml
+# Without this, the firewall role fails on community.general.ufw with a
+# "couldn't resolve module/action" error that never names the missing collection.
 collections:
+  # Only community.general.ufw is used. Floor rather than pin — verified against
+  # 13.1.0 on ansible-core 2.21.1.
   - name: community.general
+    version: ">=8.0.0"

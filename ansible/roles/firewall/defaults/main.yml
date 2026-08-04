@@ -1,0 +1,5 @@
+# Empty by default so the role is self-contained: with no group_vars it installs
+# ufw, rate-limits SSH from the LAN and denies everything else. Phases 2 and 3 add
+# real ports in ansible/group_vars/{data,obs}.yml.
+firewall_node_ports: []
+firewall_lan_ports: []
