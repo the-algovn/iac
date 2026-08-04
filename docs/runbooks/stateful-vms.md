@@ -35,3 +35,34 @@ Expected: `0`. Anything else means a PV is unprotected.
 but the PV will NOT rebind to a new claim of the same name -- it must be deleted
 and recreated, or its `claimRef` cleared. That is the intended trade: manual work
 instead of silent destruction.
+
+## Build (or rebuild) the VMs
+
+Cloned from template 9000, which already supplies `agent: enabled=1`, `ciuser: ducle`,
+`cpu: host`, `ciupgrade: 1` and the operator SSH key — do not set those again.
+
+    ssh pve '
+      qm clone 9000 114 --name algovn-data --full 1 --storage local-lvm &&
+      qm set 114 --cores 16 --memory 32768 \
+        --ipconfig0 ip=192.168.102.114/24,gw=192.168.102.1 \
+        --onboot 1 --cpuunits 2048 --startup order=1 &&
+      qm resize 114 scsi0 100G && qm start 114
+    '
+
+`algovn-obs` is the same with VMID 115, 4 cores, 8192 MB, `.115`, 64G,
+`--cpuunits 1024`, `--startup order=5`.
+
+**Startup order is deliberate:** algovn-data is order 1 so Postgres/MinIO are
+listening before k3s (algovn=2, w1=3, w2=4) starts scheduling pods that connect to
+them. algovn-obs is order 5 — nothing depends on it.
+
+These VMs are NOT k3s nodes and must never be added to the `agents` inventory group
+(that group is what runs the `k3s_agent` role).
+
+After boot, confirm the guest filesystem grew — `qm resize` only grows the virtual
+disk, cloud-init's growpart grows the partition on first boot:
+
+    ssh data 'df -h /'   # expect ~98G, not the template's 3.5G
+
+Reach them with `ssh data` / `ssh obs` (ProxyJump through `cp`; the laptop is not
+on the cluster LAN).
