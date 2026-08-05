@@ -3,6 +3,17 @@
   "extends": ["config:recommended"],
   "timezone": "Asia/Ho_Chi_Minh",
   "argocd": { "managerFilePatterns": ["/^clusters/.+\\.yaml$/"] },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "podman quadlet images on the stateful-service VMs. The argocd manager only looks at clusters/, so an image stops being tracked the moment it moves out of a Helm chart onto a VM — three after phase 2, eight after phase 3. Splitting currentDigest out of currentValue is load-bearing: uptime-kuma is pinned tag@sha256:digest, and a regex that swallows the digest into currentValue turns the version into '2.4.0@sha256:...' and the update proposal into nonsense. Deliberately unanchored — renovate compiles matchStrings with the 'g' flag only, so a '^' would match at the start of the file rather than the start of a line.",
+      "managerFilePatterns": ["/^ansible/roles/.+/files/.+\\.container$/"],
+      "matchStrings": [
+        "Image=(?<depName>[^:@\\s]+):(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     { "matchUpdateTypes": ["patch", "minor"], "groupName": "all non-major", "schedule": ["before 9am on saturday"] },
     { "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true }
