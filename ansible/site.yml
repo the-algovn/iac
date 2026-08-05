@@ -60,3 +60,4 @@
   become: true
   roles:
     - { role: loki, tags: [loki] }
+    - { role: uptime_kuma, tags: [uptime_kuma] }

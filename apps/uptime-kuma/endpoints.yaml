@@ -1,0 +1,13 @@
+# Requires platform/argocd/patches/exclusions-cm.yaml — Argo excludes Endpoints by
+# default and would silently skip this while reporting the app Synced.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: uptime-kuma
+  namespace: uptime-kuma
+subsets:
+  - addresses:
+      - ip: 192.168.102.115
+    ports:
+      - port: 3001
+        protocol: TCP

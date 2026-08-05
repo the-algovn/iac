@@ -1,8 +1,13 @@
+# Selector-less: uptime-kuma runs on algovn-obs, outside the cluster. The Endpoints
+# object beside this file supplies the address. Port 80 -> the VM's 3001; the
+# uptime.algovn.com Ingress still targets this Service by name on port 80, unchanged.
 apiVersion: v1
 kind: Service
 metadata:
   name: uptime-kuma
   namespace: uptime-kuma
 spec:
-  selector: { app: uptime-kuma }
-  ports: [{ port: 80, targetPort: 3001 }]
+  ports:
+    - port: 80
+      targetPort: 3001
+      protocol: TCP

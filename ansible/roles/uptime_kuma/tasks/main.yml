@@ -1,0 +1,25 @@
+- name: Create the uptime-kuma data directory
+  ansible.builtin.file:
+    path: /var/lib/uptime-kuma
+    state: directory
+    mode: "0755"
+
+- name: Install the uptime-kuma quadlet
+  ansible.builtin.copy:
+    src: uptime-kuma.container
+    dest: /etc/containers/systemd/uptime-kuma.container
+    mode: "0644"
+  notify: restart uptime-kuma
+
+- name: Reload systemd so the quadlet generator runs
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start uptime-kuma
+  ansible.builtin.systemd:
+    name: uptime-kuma.service
+    state: started
+    enabled: true
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
