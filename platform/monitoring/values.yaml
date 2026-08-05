@@ -12,7 +12,7 @@ external:
     read:
       url: http://192.168.102.115:8428
     write:
-      url: http://192.168.102.115:8428
+      url: http://192.168.102.115:8428/api/v1/write
 vmagent:
   spec:
     resources:
