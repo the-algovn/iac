@@ -488,9 +488,40 @@ remote write silently drops every metric in the cluster:
 History migration was attempted with `vmctl vm-native` run as a one-off in-cluster
 pod, but was killed by an Argo prune of the source `vmsingle-vm` Deployment after
 ~3% progress. The 15 d of history in the old vmsingle was therefore **not
-recovered**. The pre-cutover PVC `vmsingle-vm` was pruned along with the Deployment;
-its `Retain` PV (`pvc-f73f0fd9-…`) survives on algovn-w1 with data intact as the
-rollback path.
+recovered** — do not try to get it back, it is gone.
+
+### Rollback
+
+The pre-cutover PVC `vmsingle-vm` was pruned along with the Deployment; its `Retain`
+PV survives on algovn-w1 with data intact. Confirm the name before patching — it is
+the `Released` PV whose claim reads `monitoring/vmsingle-vm`:
+
+    kubectl --context algovn-remote get pv | grep vmsingle
+    # pvc-f73f0fd9-e95d-424c-999c-1c586a37cc9b  20Gi  RWO  Retain  Released  monitoring/vmsingle-vm
+
+The generic procedure is "Rollback — rebind the surviving `Retain` PV" under Cutover
+mechanics, with app `monitoring`, PV `pvc-f73f0fd9-e95d-424c-999c-1c586a37cc9b`, PVC
+`vmsingle-vm` in ns `monitoring`. **Step 1 differs from Loki's**: there is no chart
+source to restore. Revert `platform/monitoring/values.yaml` instead — set
+`vmsingle.enabled: true` and remove `external.vm.read.url` / `external.vm.write.url`,
+which repoints vmagent's remote write, Grafana's datasource and vmalert's routing back
+together. Then:
+
+```bash
+kubectl --context algovn-remote patch pv pvc-f73f0fd9-e95d-424c-999c-1c586a37cc9b \
+  -p '{"spec":{"claimRef":null}}'
+kubectl --context algovn-remote -n argocd annotate app monitoring \
+  argocd.argoproj.io/refresh=hard
+kubectl --context algovn-remote -n monitoring get pvc vmsingle-vm
+# Expect STATUS=Bound, VOLUME=pvc-f73f0fd9-…
+kubectl --context algovn-remote -n argocd annotate app monitoring \
+  argocd.argoproj.io/refresh-
+```
+
+Clearing `claimRef` is as load-bearing here as it is for Loki: without it the PV stays
+`Released`, refuses to bind a PVC of the same name, and the VMSingle pod sits Pending
+with nothing saying why. Rolling back also loses everything written to the VM since the
+cutover — the two stores never replicated to each other.
 
 ### `-search.latencyOffset=30s`
 
