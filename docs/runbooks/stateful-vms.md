@@ -358,14 +358,22 @@ Both VMs run `node_exporter` (ansible role `node_exporter`, tag `node_exporter`)
 no Service or Pod for the operator to discover — targets are listed statically in
 `platform/monitoring/manifests/vmstaticscrape-stateful-vms.yaml`, a `VMStaticScrape`
 CR under Argo, job name **`stateful-vms`**. Phase 3 appends `postgres_exporter`
-(9187) and `redis_exporter` (9121) to the same CR.
+(9187), `redis_exporter` (9121) and Tempo (3200) to the same CR.
+
+**A service that moves onto a VM must be added to that CR in the same commit.** Its
+in-cluster `VMServiceScrape`/`VMPodScrape` dies with the workload, and nothing replaces
+it automatically. Phase 2 initially missed this for VictoriaMetrics itself: `vm_rows`,
+`vm_free_disk_space_bytes` and `vm_slow_inserts_total` simply stopped existing, so a
+metrics store filling its disk would have gone unnoticed until it stopped answering.
+`192.168.102.115:8428` (VictoriaMetrics) and `:3100` (Loki) were added on 2026-08-05.
 
 Check the targets are up:
 
     ssh obs 'curl -sG http://localhost:8428/api/v1/query \
       --data-urlencode "query=up{job=\"stateful-vms\"}" | jq ".data.result"'
 
-Expect two series, both `"1"`, for `192.168.102.114:9100` and `192.168.102.115:9100`.
+Expect four series, all `"1"`: `192.168.102.114:9100`, `192.168.102.115:9100`,
+`192.168.102.115:8428` and `192.168.102.115:3100`.
 
 Raw check from a k3s node, bypassing the cluster entirely:
 
@@ -378,6 +386,24 @@ vmagent not selecting the CR rather than anything on the VMs:
 
 If that is not `true`, vmagent only picks up CRs matching its explicit selectors and
 this one is ignored silently — the VMs stay invisible with no error anywhere.
+
+### Known gap: no host metrics for cp and w1
+
+`up{job="node-exporter"}` is `0` for `192.168.102.111` (cp) and `.112` (w1), and `1`
+only for `.113` (w2) — measured 2026-08-05, and true since long before the VM
+migration. ufw is active on all three k3s nodes, hand-managed (see
+docs/runbooks/add-node.md), and neither cp nor w1 allows **9100** from the other nodes;
+vmagent therefore only ever reaches the exporter on the node it happens to run on.
+
+So CPU, memory, disk and network for two of the three k3s nodes have **never** been
+collected. That matters for Phase 3 in one specific way: `postgres.md` tells you to
+watch w1's disk fill, and w1 is one of the two nodes you cannot see.
+
+This is deliberately **not fixed here** — it predates the migration and changing a k3s
+node's firewall is outside a stateful-services change. The fix, when someone takes it,
+is `ufw allow from 192.168.102.0/24 to any port 9100 proto tcp` on cp and w1, by hand
+on each node, plus adding 9100 to the port list in add-node.md's step 2 (already
+listed there as what a node should allow).
 
 ## Loki
 
