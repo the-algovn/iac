@@ -4,7 +4,15 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=docker.io/louislam/uptime-kuma:2.4.0
+# Digest-pinned: the louislam/uptime-kuma:2.4.0 tag is mutable and changed between
+# the May 2026 pull and 2026-08-05. The older image wrote its SQLite database to
+# /app/db/ (container ephemeral layer) while the newer one writes to /app/data/
+# (the bind mount) — a silent path relocation that the tag motion hid and that made
+# the original StatefulSet's PVC mount ineffective. Every other quadlet pins a tag
+# (that is fine for those) but this specific tag has demonstrated it moves and that
+# the move can relocate persistent data, so it is pinned to the digest of the image
+# that is confirmed running and writing its DB correctly.
+Image=docker.io/louislam/uptime-kuma:2.4.0@sha256:91e963bfda569ba115206e843febb446f473ab525add4e08b2b9e3beffa16985
 # Network=host, never PublishPort — see docs/runbooks/stateful-vms.md. Binds :3001,
 # which ufw already allows from the three k3s node IPs (Kong reaches it that way).
 Network=host

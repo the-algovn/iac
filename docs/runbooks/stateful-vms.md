@@ -358,6 +358,18 @@ In-cluster, `uptime-kuma.uptime-kuma.svc:80` is a selector-less Service + Endpoi
 (`apps/uptime-kuma/`) targeting `192.168.102.115:3001`. The `uptime.algovn.com`
 Kong Ingress was not edited — it still points at that Service by name.
 
-Its SQLite database WAS migrated (unlike Loki's history): the monitor definitions are
-hand-made. If a rebuild is ever needed, scale nothing — copy `/var/lib/uptime-kuma`
-with the container stopped, since SQLite must be quiescent for a consistent copy.
+Nothing was migrated because nothing existed: the in-cluster deployment mounted its
+PVC at `/app/data`, but the image of the day (the `2.4.0` tag at its May 2026 digest)
+wrote `kuma.db` to `/app/db/` in the container's **ephemeral layer** — every pod
+restart silently discarded the configuration. The 16 K-empty PVC on w1
+(`pvc-dfd7f0a7-…`) is the evidence. This migration therefore **fixed** a latent
+data-loss bug rather than merely relocating the service.
+
+Data now lives at `/var/lib/uptime-kuma` on obs and is genuinely persistent
+(bind-mounted to `/app/data` by the quadlet; `kuma.db` plus `old_migrations/`,
+~844 K). The `/app/db` → `/app/data` path change between the old and new image
+digests is why this was broken before and why the quadlet pins the image by digest
+rather than by tag.
+
+If a rebuild is ever needed, copy `/var/lib/uptime-kuma` with the container stopped,
+since SQLite must be quiescent for a consistent copy.

@@ -1,3 +1,5 @@
+# daemon-reload first: quadlet units are generated at reload time, so a changed
+# .container file has no effect until the generator has re-run.
 - name: restart uptime-kuma
   ansible.builtin.systemd:
     name: uptime-kuma.service
