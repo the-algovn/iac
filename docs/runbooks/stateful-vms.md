@@ -154,6 +154,154 @@ Postgres and Redis are NOT containers — they are native apt packages (PGDG and
 redis.io repos), because the database benefits from `pg_upgradecluster`, unattended
 security updates and the standard /etc/postgresql layout.
 
+### Smoke-test the generator after a podman upgrade
+
+    sudo tee /etc/containers/systemd/quadlet-smoke.container >/dev/null <<EOF
+    [Unit]
+    Description=Quadlet smoke test
+    [Container]
+    Image=docker.io/library/busybox:1.37
+    Exec=sleep 600
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+    sudo systemctl daemon-reload && sudo systemctl start quadlet-smoke.service
+    sudo systemctl is-active quadlet-smoke.service   # expect: active
+
+Tear it down completely — stopping a quadlet whose container is already gone leaves
+a phantom `not-found failed` unit that `systemctl --failed` reports forever (both VMs
+carried one from the Phase 1 smoke test until 2026-08-04):
+
+    sudo systemctl stop quadlet-smoke.service
+    sudo rm -f /etc/containers/systemd/quadlet-smoke.container
+    sudo systemctl daemon-reload
+    sudo systemctl reset-failed quadlet-smoke.service
+    sudo podman rm -f quadlet-smoke
+    sudo podman rmi docker.io/library/busybox:1.37
+    sudo systemctl --failed --no-legend    # expect: no output
+
+⚠️ Name the probe explicitly, as above. Never `podman rm -af && podman rmi -a` here:
+since Phase 2 algovn-obs runs Loki, uptime-kuma and VictoriaMetrics as quadlets (Phase 3
+adds Tempo, and gives algovn-data MinIO and Redpanda), `rm -af` force-removes RUNNING
+containers, and quadlet units default to `Restart=no` — so a blanket teardown takes
+every service on that VM down until someone restarts them by hand and re-pulls every
+image.
+
+## Cutover mechanics
+
+Everything in this section applies to **every** service that moves onto these VMs, not
+just the one it was first learned from. Phase 3 — Postgres, Redis, MinIO, Redpanda, then
+Tempo — repeats all of it, and Postgres in particular breaks logins cluster-wide for the
+length of its window. Read this section before starting a cutover; the per-service
+sections below record only what is specific to one service.
+
+### Keeping the in-cluster DNS name — selector-less Service + Endpoints
+
+A service that moves to a VM keeps its cluster DNS name by leaving behind a Service with
+**no `spec.selector`** plus a hand-written `Endpoints` object holding the VM's IP.
+Nothing that consumed the name has to change: alloy still pushes to
+`loki.logging.svc:3100`, Kong's Ingress still targets `uptime-kuma` by name. Phase 3 does
+the same for `redis`, `minio`, `redpanda` and `pg-rw`. (VictoriaMetrics is the exception —
+the chart resolves its own URLs, so it is a values change instead; see its section.)
+
+Three consequences, each of which has already cost time:
+
+- **Argo excludes `Endpoints` from sync by default.**
+  `platform/argocd/patches/exclusions-cm.yaml` is what re-includes them. Without that
+  patch the Endpoints object is silently skipped while the Application still reports
+  Synced — the Service exists, resolves, and blackholes.
+- **`kubectl port-forward svc/<name>` stops working**, permanently:
+
+      error: cannot attach to *v1.Service: invalid service 'loki': Service is defined without a selector
+
+  port-forward resolves a Service to a pod through `spec.selector`, and there is none.
+  The apiserver service proxy is not a workaround either — `no endpoints available for
+  service`. The laptop is not on the cluster LAN, so the access path is an SSH tunnel:
+
+      ssh -o ExitOnForwardFailure=yes -N -L 8428:localhost:8428 obs
+
+  `scripts/obs` carries a `service_host()` table for exactly this reason. **When a
+  service moves, update that table in the same commit** — Phase 2 did not, and the
+  production log-reading path the `algovn-prod-debug` skill points at was dead until
+  2026-08-05. Tempo is the next one to flip.
+- **A stale EndpointSlice survives the cutover.** The EndpointSlice controller stops
+  reconciling a Service the moment its selector is removed and does not garbage-collect
+  slices it already created, so the pre-cutover slice is frozen in place indefinitely.
+  `logging/loki-k2tg2` (→ `10.42.1.130`) and `uptime-kuma/uptime-kuma-hp5zk`
+  (→ `10.42.1.151`) both outlived Phase 2 and were deleted by hand on 2026-08-05.
+  Traffic was never split — kube-proxy only uses `ready: true` endpoints and both stale
+  entries were `ready: false` — but a Service showing two backends is exactly what an
+  operator chasing a Kong 503 will latch onto. **Expect one per cutover in Phase 3 and
+  delete it:**
+
+      kubectl --context algovn-remote delete endpointslice -n <ns> <stale-slice>
+
+Check backends through **EndpointSlice, not Endpoints**. `v1 Endpoints` is deprecated
+(the cluster answers with `Warning: v1 Endpoints is deprecated in v1.33+; use
+discovery.k8s.io/v1 EndpointSlice` — it is on v1.36) and, more importantly, a stale
+slice is invisible through the old API:
+
+    kubectl --context algovn-remote get endpointslice -n <ns> -l kubernetes.io/service-name=<svc>
+
+Expect exactly ONE slice, holding the VM's IP. If traffic, logs or metrics stop while the
+Argo app reads Synced/Healthy, look here first.
+
+### Argo prunes chart-managed PVCs
+
+A **chart-managed PVC is pruned by Argo when the chart source is removed** — this is how
+`storage-loki-0` disappeared along with its StatefulSet. Every cutover that follows the
+"remove the chart source, let Argo prune" pattern (Postgres, MinIO, Redis, Redpanda)
+shares the behaviour. The PV survives only because of the `Retain` patch at the top of
+this runbook; without it the prune would have destroyed the data.
+
+### Argo hard-refresh after source changes
+
+When the set of sources in an Argo Application changes (remove one chart, add a `path`
+source), Argo may report `Synced/Healthy` while old resources from the removed chart are
+still present. A `hard` refresh forces re-evaluation:
+
+```bash
+kubectl --context algovn-remote -n argocd annotate app <app> \
+  argocd.argoproj.io/refresh=hard
+```
+
+Once pruning completes, remove the annotation — a persistent `refresh` annotation makes
+Argo report perpetual OutOfSync even when nothing drifted:
+
+```bash
+kubectl --context algovn-remote -n argocd annotate app <app> \
+  argocd.argoproj.io/refresh-
+```
+
+This is especially load-bearing when cutting over a database: a green app with the old
+in-cluster instance still running means the old instance is still taking writes, which
+for Postgres is a split brain.
+
+### Rollback — rebind the surviving `Retain` PV
+
+Reverting a cutover is NOT a one-line git revert. The PVC was pruned; its PV survives
+with data intact, but in status `Released` — and **a `Released` PV will not bind a new
+PVC even one with the identical name.** The StatefulSet then sits Pending forever with
+nothing explaining why. Clearing `claimRef` is the step that makes rollback possible at
+all, and it applies to every service in this runbook:
+
+```bash
+# 1. Restore the chart source in clusters/algovn/platform/<app>.yaml and push.
+# 2. Clear the PV's claimRef so a new PVC of the same name can bind it:
+kubectl --context algovn-remote patch pv <pv> -p '{"spec":{"claimRef":null}}'
+# 3. Hard-refresh, per the section above — Argo may otherwise report Synced/Healthy
+#    without syncing the restored chart:
+kubectl --context algovn-remote -n argocd annotate app <app> argocd.argoproj.io/refresh=hard
+# 4. Verify the new PVC bound the existing PV — expect STATUS=Bound, VOLUME=<pv>:
+kubectl --context algovn-remote -n <ns> get pvc <pvc>
+# 5. Remove the annotation so Argo does not report perpetual drift:
+kubectl --context algovn-remote -n argocd annotate app <app> argocd.argoproj.io/refresh-
+```
+
+The per-service `<app>` / `<pv>` / `<pvc>` values are in the sections below. Confirm the
+PV name against `kubectl get pv` before patching — the claim column still shows which
+service each `Released` volume belonged to.
+
 ### ufw does not govern published ports — use `Network=host`
 
 **Every quadlet on these VMs MUST use `Network=host` and bind its real port
@@ -203,38 +351,6 @@ through. Two 8-second timeouts where the k3s node should have succeeded is the
 signature of the `PublishPort` trap above — check `sudo iptables -t nat -S | grep <port>`
 for a DNAT rule.
 
-Smoke-test the mechanism after any podman upgrade:
-
-    sudo tee /etc/containers/systemd/quadlet-smoke.container >/dev/null <<EOF
-    [Unit]
-    Description=Quadlet smoke test
-    [Container]
-    Image=docker.io/library/busybox:1.37
-    Exec=sleep 600
-    [Install]
-    WantedBy=multi-user.target
-    EOF
-    sudo systemctl daemon-reload && sudo systemctl start quadlet-smoke.service
-    sudo systemctl is-active quadlet-smoke.service   # expect: active
-
-Tear it down completely — stopping a quadlet whose container is already gone leaves
-a phantom `not-found failed` unit that `systemctl --failed` reports forever (both VMs
-carried one from the Phase 1 smoke test until 2026-08-04):
-
-    sudo systemctl stop quadlet-smoke.service
-    sudo rm -f /etc/containers/systemd/quadlet-smoke.container
-    sudo systemctl daemon-reload
-    sudo systemctl reset-failed quadlet-smoke.service
-    sudo podman rm -f quadlet-smoke
-    sudo podman rmi docker.io/library/busybox:1.37
-    sudo systemctl --failed --no-legend    # expect: no output
-
-⚠️ Name the probe explicitly, as above. Never `podman rm -af && podman rmi -a` here:
-from Phase 2 this VM runs MinIO, Redpanda, VictoriaMetrics, Loki, Tempo and
-uptime-kuma as quadlets, `rm -af` force-removes RUNNING containers, and quadlet units
-default to `Restart=no` — so a blanket teardown takes all six down until someone
-restarts them by hand and re-pulls every image.
-
 ## Monitoring
 
 Both VMs run `node_exporter` (ansible role `node_exporter`, tag `node_exporter`) on
@@ -275,73 +391,20 @@ In-cluster, `loki.logging.svc:3100` is a **selector-less Service + Endpoints**
 resolves. The loki Helm chart source was removed from
 `clusters/algovn/platform/logging.yaml`; alloy remains a chart.
 
-If logs stop flowing while the `logging` app reads Synced/Healthy, check
-`kubectl get endpoints -n logging loki` FIRST. Argo excludes Endpoints by default and
-`platform/argocd/patches/exclusions-cm.yaml` is what re-includes them.
+If logs stop flowing while the `logging` app reads Synced/Healthy, check the
+EndpointSlice first — see "Keeping the in-cluster DNS name" under Cutover mechanics:
+
+    kubectl --context algovn-remote get endpointslice -n logging -l kubernetes.io/service-name=loki
 
 Existing history was NOT migrated (168 h retention, and copying a live TSDB index
 risks corrupting it).
 
-### Argo prunes chart-managed PVCs
-
-The PVC `storage-loki-0` was pruned by Argo along with the StatefulSet — a
-**chart-managed PVC is pruned by Argo when the chart source is removed**. The later
-cutovers (Postgres, MinIO, Redis) all follow the same "remove chart source, let Argo
-prune" pattern and share this behaviour.
-
-PV `pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a` survives with
-`persistentVolumeReclaimPolicy: Retain`, status `Released`, and 131 MB of data intact
-at `/var/lib/rancher/k3s/storage/pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a_logging_storage-loki-0`
-on algovn-w1.
-
-### Rollback
-
-Reverting is NOT a one-line revert. The PVC must be recreated and bound to the
-surviving PV before Argo can recreate the StatefulSet:
-
-```bash
-# 1. Restore the loki chart source in clusters/algovn/platform/logging.yaml and push.
-# 2. Clear the PV's claimRef so a new PVC of the same name can bind it:
-kubectl --context algovn-remote patch pv pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a \
-  -p '{"spec":{"claimRef":null}}'
-# 3. Trigger a hard refresh — Argo may report Synced/Healthy without pruning
-#    the manifests source or syncing the restored chart (see below):
-kubectl --context algovn-remote -n argocd annotate app logging \
-  argocd.argoproj.io/refresh=hard
-# 4. Verify the new PVC bound the existing PV:
-kubectl --context algovn-remote -n logging get pvc storage-loki-0
-# Expected: STATUS=Bound, VOLUME=pvc-819f5e0e-…
-# 5. Remove the annotation so Argo does not report perpetual drift:
-kubectl --context algovn-remote -n argocd annotate app logging \
-  argocd.argoproj.io/refresh-
-```
-
-The `claimRef` clear is the critical step — without it, the PV is `Released` and
-cannot bind a new PVC even one with the same name; the StatefulSet sits Pending
-forever.
-
-### Argo hard-refresh after source changes
-
-When the set of sources in an Argo Application changes (remove one chart, add a
-`path` source), Argo may report `Synced/Healthy` while old resources from the
-removed chart are still present. A `hard` refresh forces re-evaluation:
-
-```bash
-kubectl --context algovn-remote -n argocd annotate app logging \
-  argocd.argoproj.io/refresh=hard
-```
-
-Once pruning completes, remove the annotation — a persistent `refresh` annotation
-makes Argo report perpetual OutOfSync even when nothing drifted:
-
-```bash
-kubectl --context algovn-remote -n argocd annotate app logging \
-  argocd.argoproj.io/refresh-
-```
-
-This is especially load-bearing when cutting over a database: a green app with
-the old in-cluster instance still running means the old instance is still taking
-writes, which for Postgres is a split brain.
+**Rollback** — app `logging`, PV `pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a`, PVC
+`storage-loki-0` in ns `logging`; follow "Rollback — rebind the surviving `Retain` PV"
+under Cutover mechanics. The PV is `Released` with 131 MB of data intact at
+`/var/lib/rancher/k3s/storage/pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a_logging_storage-loki-0`
+on algovn-w1. Step 1 is restoring the loki chart source in
+`clusters/algovn/platform/logging.yaml`.
 
 Debug: `systemctl status loki` and `journalctl -u loki -n 50` on the VM;
 `curl localhost:3100/ready` there; from a k3s node,
@@ -353,8 +416,10 @@ Runs on algovn-obs as a podman quadlet (ansible role `uptime_kuma`, tag
 `uptime_kuma`), data at `/var/lib/uptime-kuma`, listening on **:3001**.
 
 In-cluster, `uptime-kuma.uptime-kuma.svc:80` is a selector-less Service + Endpoints
-(`apps/uptime-kuma/`) targeting `192.168.102.115:3001`. The `uptime.algovn.com`
-Kong Ingress was not edited — it still points at that Service by name.
+(`apps/uptime-kuma/`) targeting `192.168.102.115:3001` — see "Keeping the in-cluster
+DNS name" under Cutover mechanics. The `uptime.algovn.com` Kong Ingress was not
+edited — it still points at that Service by name, so a `503` from Kong means the
+Endpoints/EndpointSlice, not the Ingress.
 
 Nothing was migrated because nothing existed: the in-cluster deployment mounted its
 PVC at `/app/data`, but the image of the day (the `2.4.0` tag at its May 2026 digest)
