@@ -348,3 +348,16 @@ writes, which for Postgres is a split brain.
 Debug: `systemctl status loki` and `journalctl -u loki -n 50` on the VM;
 `curl localhost:3100/ready` there; from a k3s node,
 `curl http://192.168.102.115:3100/ready`.
+
+## uptime-kuma
+
+Runs on algovn-obs as a podman quadlet (ansible role `uptime_kuma`, tag
+`uptime_kuma`), data at `/var/lib/uptime-kuma`, listening on **:3001**.
+
+In-cluster, `uptime-kuma.uptime-kuma.svc:80` is a selector-less Service + Endpoints
+(`apps/uptime-kuma/`) targeting `192.168.102.115:3001`. The `uptime.algovn.com`
+Kong Ingress was not edited — it still points at that Service by name.
+
+Its SQLite database WAS migrated (unlike Loki's history): the monitor definitions are
+hand-made. If a rebuild is ever needed, scale nothing — copy `/var/lib/uptime-kuma`
+with the container stopped, since SQLite must be quiescent for a consistent copy.
