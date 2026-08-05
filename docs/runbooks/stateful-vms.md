@@ -246,10 +246,8 @@ CR under Argo, job name **`stateful-vms`**. Phase 3 appends `postgres_exporter`
 
 Check the targets are up:
 
-    kubectl --context algovn-remote -n monitoring port-forward svc/vmsingle-vm 8428:8428
-    # in another terminal:
-    curl -sG 'http://localhost:8428/api/v1/query' \
-      --data-urlencode 'query=up{job="stateful-vms"}' | jq '.data.result'
+    ssh obs 'curl -sG http://localhost:8428/api/v1/query \
+      --data-urlencode "query=up{job=\"stateful-vms\"}" | jq ".data.result"'
 
 Expect two series, both `"1"`, for `192.168.102.114:9100` and `192.168.102.115:9100`.
 
@@ -373,3 +371,55 @@ rather than by tag.
 
 If a rebuild is ever needed, copy `/var/lib/uptime-kuma` with the container stopped,
 since SQLite must be quiescent for a consistent copy.
+
+## VictoriaMetrics
+
+The STORAGE half runs on algovn-obs as a podman quadlet (ansible role
+`victoria_metrics`, tag `victoria_metrics`), data at `/var/lib/victoria-metrics`,
+listening on **:8428**, 15 d retention.
+
+`vmagent` deliberately stays IN the cluster — that is what keeps the 19
+`VMServiceScrape`/`VMPodScrape` CRs working. It scrapes as before and remote-writes
+outward to the VM. Moving vmagent too would mean hand-writing a `promscrape.yml`
+with `kubernetes_sd_configs` and abandoning every scrape CR.
+
+This is NOT an Endpoints case. The chart resolves its own URLs, so
+`platform/monitoring/values.yaml` sets `vmsingle.enabled: false` plus
+`external.vm.read.url` / `external.vm.write.url` — which repoints vmagent's remote
+write, Grafana's VictoriaMetrics datasource and vmalert's routing together.
+
+Verify chart-behaviour changes here with `helm template` before pushing. A broken
+remote write silently drops every metric in the cluster:
+
+    helm template vm vm/victoria-metrics-k8s-stack --version 0.86.0 \
+      -f platform/monitoring/values.yaml | grep -A3 'remoteWrite:'
+
+History migration was attempted with `vmctl vm-native` run as a one-off in-cluster
+pod, but was killed by an Argo prune of the source `vmsingle-vm` Deployment after
+~3% progress. The 15 d of history in the old vmsingle was therefore **not
+recovered**. The pre-cutover PVC `vmsingle-vm` was pruned along with the Deployment;
+its `Retain` PV (`pvc-f73f0fd9-…`) survives on algovn-w1 with data intact as the
+rollback path.
+
+### `-search.latencyOffset=30s`
+
+VictoriaMetrics defaults `-search.latencyOffset=30s`: an **instant query**
+(`/api/v1/query`) cannot see a sample written less than ~30 seconds ago. This is by
+design — it prevents queries from returning partial results while the most recent
+scrape is still in flight. It applies to instant queries only; `/api/v1/query_range`
+is not affected.
+
+The practical consequence: after a cutover or restart, `count(up)` or any instant
+query will return 0 or empty until at least 35-40 seconds have passed since the
+first write. Do not conclude ingestion is broken until you have waited that long, or
+verified via `query_range`:
+
+    ssh obs 'curl -sG "http://localhost:8428/api/v1/query_range" \
+      --data-urlencode "query=count(up)" \
+      --data-urlencode "start=$(date -u -v-5M +%s)" \
+      --data-urlencode "end=$(date -u +%s)" \
+      --data-urlencode "step=60" | jq -r ".data.result[].values[-1][1]"'
+
+Debug: `systemctl status victoria-metrics` / `journalctl -u victoria-metrics` on the
+VM; `curl localhost:8428/health` there; `kubectl -n monitoring logs deploy/vmagent-vm`
+for write failures.
