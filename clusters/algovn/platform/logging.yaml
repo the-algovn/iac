@@ -8,13 +8,9 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: https://grafana.github.io/helm-charts
-      chart: loki
-      targetRevision: 7.0.0
-      helm:
-        releaseName: loki
-        valueFiles:
-          - $values/platform/logging/loki-values.yaml
+    # The loki chart source was removed 2026-08-04: Loki now runs on algovn-obs as a
+    # podman quadlet (ansible role `loki`). What stays in-cluster is alloy, which ships
+    # logs to it, plus a selector-less Service + Endpoints pointing at the VM.
     - repoURL: https://grafana.github.io/helm-charts
       chart: alloy
       targetRevision: 1.10.1
@@ -22,6 +18,9 @@ spec:
         releaseName: alloy
         valueFiles:
           - $values/platform/logging/alloy-values.yaml
+    - repoURL: https://github.com/the-algovn/iac.git
+      targetRevision: main
+      path: platform/logging/manifests
     - repoURL: https://github.com/the-algovn/iac.git
       targetRevision: main
       ref: values

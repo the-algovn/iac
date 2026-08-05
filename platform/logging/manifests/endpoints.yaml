@@ -1,0 +1,15 @@
+# Argo CD's shipped argocd-cm excludes Endpoints from sync; platform/argocd/patches/
+# exclusions-cm.yaml re-includes them. Without that patch this object is silently
+# skipped and the Application still reports Synced — see docs/runbooks/remote-access.md.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: loki
+  namespace: logging
+subsets:
+  - addresses:
+      - ip: 192.168.102.115
+    ports:
+      - name: http-metrics
+        port: 3100
+        protocol: TCP

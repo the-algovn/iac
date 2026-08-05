@@ -1,0 +1,16 @@
+# Selector-less on purpose: Loki runs on algovn-obs, outside the cluster, so there
+# is no pod to select. The Endpoints object beside this file supplies the address.
+# The NAME must stay `loki` — alloy pushes to loki.logging.svc.cluster.local:3100
+# (platform/logging/alloy-values.yaml) and Grafana's datasource uses the same host
+# (platform/monitoring/values.yaml), and neither is edited by this migration.
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: logging
+spec:
+  ports:
+    - name: http-metrics
+      port: 3100
+      targetPort: 3100
+      protocol: TCP
