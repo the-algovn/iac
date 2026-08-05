@@ -1,11 +1,19 @@
+# Selector-less: MinIO runs on algovn-data, outside the cluster. The Endpoints object
+# beside this file supplies the address. The NAME must stay `minio` — six manifests
+# reference minio.minio.svc:9000, the s3.algovn.com Ingress targets this Service, and
+# the two in-cluster provisioning Jobs authenticate through it.
 apiVersion: v1
 kind: Service
 metadata:
   name: minio
   namespace: minio
-  labels: { app: minio }
 spec:
-  selector: { app: minio }
   ports:
-    - { port: 9000, targetPort: 9000, name: s3 }
-    - { port: 9001, targetPort: 9001, name: console }
+    - name: s3
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+    - name: console
+      port: 9001
+      targetPort: 9001
+      protocol: TCP

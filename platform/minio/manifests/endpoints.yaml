@@ -1,0 +1,17 @@
+# Requires platform/argocd/patches/exclusions-cm.yaml — Argo excludes Endpoints by
+# default and would silently skip this while reporting the app Synced.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: minio
+  namespace: minio
+subsets:
+  - addresses:
+      - ip: 192.168.102.114
+    ports:
+      - name: s3
+        port: 9000
+        protocol: TCP
+      - name: console
+        port: 9001
+        protocol: TCP

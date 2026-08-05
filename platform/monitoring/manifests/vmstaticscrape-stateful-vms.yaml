@@ -27,6 +27,10 @@ spec:
     # Loki is here for the same reason. ufw on obs already allows both ports from
     # the k3s node IPs, so no firewall change is needed.
     - targets:
+        - 192.168.102.114:9000
+      path: /minio/v2/metrics/cluster
+      scheme: http
+    - targets:
         - 192.168.102.115:8428   # VictoriaMetrics — scrapes itself via vmagent
         - 192.168.102.115:3100   # Loki
       path: /metrics
