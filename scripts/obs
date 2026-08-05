@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # obs — query production logs (Loki) and traces (Tempo) from a laptop.
 #
-# Everything runs through a temporary `kubectl port-forward`, so it needs no
-# ingress and no long-lived credential: if you can reach the cluster, you can
-# read the logs.
+# Everything runs through a temporary forward, so it needs no ingress and no
+# long-lived credential: a service still in the cluster is reached with
+# `kubectl port-forward`, one that has moved to a VM with an SSH tunnel.
 #
 #   obs errors [--since 1h]        errors across every application namespace
 #   obs trace <trace_id>           every log line and span for one request
@@ -15,13 +15,20 @@ CONTEXT="${KUBE_CONTEXT:-algovn-remote}"
 SINCE="1h"
 LIMIT="${OBS_LIMIT:-1000}"
 
-# forward() records each port-forward's pid in this file rather than a shell
-# array: forward() is always called from inside a subshell (either the left
-# side of a pipe, e.g. `loki_query ... | render`, or a `$(...)` command
-# substitution), and a subshell's array writes never reach the parent shell.
-# A file survives subshell boundaries, so this is what actually lets cleanup
-# find and kill every port-forward it started.
+# forward() records each forward's pid in this file rather than a shell array:
+# forward() is always called from inside a subshell (either the left side of a
+# pipe, e.g. `loki_query ... | render`, or a `$(...)` command substitution), and
+# a subshell's array writes never reach the parent shell. A file survives
+# subshell boundaries, so this is what actually lets cleanup find and kill every
+# forward it started.
 PIDFILE=$(mktemp "${TMPDIR:-/tmp}/obs-pids.XXXXXX")
+
+# The forwarders' stderr. It has to go somewhere other than the caller's stdout
+# — forward() runs inside `$(...)`, and a background process holding that pipe
+# open would hang the command substitution forever — but /dev/null would make an
+# SSH failure (host down, ProxyJump through cp broken, key not loaded) completely
+# opaque, so it is kept and printed on the failure path.
+ERRFILE=$(mktemp "${TMPDIR:-/tmp}/obs-err.XXXXXX")
 
 die() { echo "obs: $*" >&2; exit 1; }
 
@@ -32,6 +39,7 @@ cleanup() {
     done < "$PIDFILE"
     rm -f "$PIDFILE"
   fi
+  rm -f "$ERRFILE"
 }
 trap cleanup EXIT INT TERM
 
@@ -40,23 +48,44 @@ free_port() {
   python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'
 }
 
-# forward <namespace> <service> <remote-port> -> echoes the local port.
-# Returns 1 (and prints nothing to stdout) if the port-forward never becomes
-# reachable — either kubectl exited immediately (bad namespace/service) or it
-# timed out.
-forward() {
-  local ns=$1 svc=$2 port=$3 local_port pid i
-  local_port=$(free_port)
-  kubectl --context "$CONTEXT" -n "$ns" port-forward "svc/$svc" "$local_port:$port" >/dev/null 2>&1 &
-  pid=$!
-  echo "$pid" >> "$PIDFILE"
-  # 100 x 100ms = 10s: algovn-remote is reached over a cloudflared tunnel, and
-  # a fresh port-forward can occasionally take a few seconds to come up under
-  # load. A dead kubectl process (e.g. Tempo's namespace not existing) is
-  # still detected immediately below and does not wait out this budget.
+# service_host <service> — where that service actually runs. `cluster` means
+# kubectl port-forward; anything else is an ssh(1) destination (a Host stanza in
+# ~/.ssh/config) reached with a tunnel.
+#
+# This table is the whole point of the indirection. A service that has moved to a
+# VM keeps its in-cluster DNS name through a **selector-less** Service, and
+# `kubectl port-forward` cannot work against one: it resolves a Service to a pod
+# via spec.selector, so it fails outright with "Service is defined without a
+# selector". The apiserver service proxy is not a fallback either ("no endpoints
+# available for service"), and the laptop is not on the cluster LAN, so an SSH
+# tunnel — the same access path docs/runbooks/stateful-vms.md uses — is what is
+# left.
+#
+# Phase 3 moves Tempo to algovn-obs too. Flip its value to `obs` in the same
+# commit that removes the tempo chart source, or `obs trace` loses its span half
+# exactly the way `obs errors` lost Loki in Phase 2.
+service_host() {
+  case "$1" in
+    loki)  echo obs ;;       # algovn-obs since Phase 2
+    tempo) echo cluster ;;   # in-cluster until Phase 3
+    *)     echo cluster ;;
+  esac
+}
+
+# wait_for_port <pid> <local-port> <label> — poll until the forward answers and
+# echo the local port. Returns 1, printing nothing to stdout, if the forwarder
+# died or never came up.
+#
+# 100 x 100ms = 10s: algovn-remote is reached over a cloudflared tunnel and obs
+# over a ProxyJump through cp, so a fresh forward can take a few seconds under
+# load. A dead forwarder (e.g. Tempo's namespace not existing, or obs
+# unreachable) is detected immediately below and does not wait out this budget.
+wait_for_port() {
+  local pid=$1 local_port=$2 label=$3 i
   for i in $(seq 1 100); do
     if ! kill -0 "$pid" 2>/dev/null; then
-      echo "obs: port-forward to $ns/$svc failed to start" >&2
+      echo "obs: forward to $label failed to start" >&2
+      tail -n 3 "$ERRFILE" >&2 || true
       return 1
     fi
     if curl -s -o /dev/null "http://127.0.0.1:$local_port" 2>/dev/null; then
@@ -65,8 +94,33 @@ forward() {
     fi
     sleep 0.1
   done
-  echo "obs: timed out waiting for port-forward to $ns/$svc" >&2
+  echo "obs: timed out waiting for the forward to $label" >&2
+  tail -n 3 "$ERRFILE" >&2 || true
   return 1
+}
+
+# forward <namespace> <service> <remote-port> -> echoes the local port.
+# Returns 1 (and prints nothing to stdout) if the forward never becomes
+# reachable.
+forward() {
+  local ns=$1 svc=$2 port=$3 host local_port pid label
+  host=$(service_host "$svc")
+  local_port=$(free_port)
+  if [[ "$host" == "cluster" ]]; then
+    label="$ns/$svc"
+    kubectl --context "$CONTEXT" -n "$ns" port-forward "svc/$svc" "$local_port:$port" \
+      >/dev/null 2>>"$ERRFILE" &
+  else
+    label="$svc on $host"
+    # -n so the backgrounded ssh cannot consume the caller's stdin (`obs tail`
+    # pipes through one), BatchMode so a missing key fails fast instead of
+    # blocking on a passphrase prompt it has no terminal to show.
+    ssh -n -o BatchMode=yes -o ExitOnForwardFailure=yes \
+      -N -L "$local_port:localhost:$port" "$host" >/dev/null 2>>"$ERRFILE" &
+  fi
+  pid=$!
+  echo "$pid" >> "$PIDFILE"
+  wait_for_port "$pid" "$local_port" "$label"
 }
 
 loki_query() {
@@ -222,11 +276,14 @@ cmd_grep() {
 
 command -v jq >/dev/null || die "jq is required"
 command -v kubectl >/dev/null || die "kubectl is required"
+command -v ssh >/dev/null || die "ssh is required"
 
 case "${1:-}" in
   errors) shift; cmd_errors "$@" ;;
   trace)  shift; cmd_trace  "$@" ;;
   tail)   shift; cmd_tail   "$@" ;;
   grep)   shift; cmd_grep   "$@" ;;
-  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' ; exit 1 ;;
+  # Usage is the leading comment block itself, found by scanning rather than by a
+  # hardcoded line range — editing the header must not silently truncate --help.
+  *) awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 1 ;;
 esac
