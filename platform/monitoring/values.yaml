@@ -11,6 +11,11 @@ external:
   vm:
     read:
       url: http://192.168.102.115:8428
+    # The write URL MUST end in /api/v1/write: the chart uses it verbatim as the
+    # VMAgent's remoteWrite.url, and the Prometheus remote-write protocol requires
+    # that path. Without it every write is rejected HTTP 400 — silently, from the
+    # writer's side. (Cost an outage during the Phase 2 cutover.) The read URL
+    # takes no path; Grafana appends its own query paths to the datasource base.
     write:
       url: http://192.168.102.115:8428/api/v1/write
 vmagent:
