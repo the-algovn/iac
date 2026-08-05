@@ -1,0 +1,6 @@
+# daemon-reload first: quadlet units are generated at reload time.
+- name: restart tempo
+  ansible.builtin.systemd:
+    name: tempo.service
+    state: restarted
+    daemon_reload: true

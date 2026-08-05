@@ -6,8 +6,8 @@ All stateful workloads are migrating off k3s onto two Proxmox VMs. Design:
 
 | VM | VMID | IP | vCPU | RAM | disk | holds |
 |---|---|---|---|---|---|---|
-| algovn-data | 114 | 192.168.102.114 | 16 | 32G | 100G | postgres, redis, minio, redpanda |
-| algovn-obs | 115 | 192.168.102.115 | 4 | 8G | 64G | victoria-metrics, loki, tempo, uptime-kuma |
+| algovn-data | 114 | 192.168.102.114 | 16 | 32G | 100G | postgres, redis, minio, redpanda, tempo |
+| algovn-obs | 115 | 192.168.102.115 | 4 | 8G | 64G | victoria-metrics, loki, uptime-kuma |
 
 ## PV reclaim policy — do not revert
 
@@ -223,7 +223,7 @@ Three consequences, each of which has already cost time:
   `scripts/obs` carries a `service_host()` table for exactly this reason. **When a
   service moves, update that table in the same commit** — Phase 2 did not, and the
   production log-reading path the `algovn-prod-debug` skill points at was dead until
-  2026-08-05. Tempo is the next one to flip.
+  2026-08-05. Tempo moved to algovn-data 2026-08-05.
 - **A stale EndpointSlice survives the cutover.** The EndpointSlice controller stops
   reconciling a Service the moment its selector is removed and does not garbage-collect
   slices it already created, so the pre-cutover slice is frozen in place indefinitely.
@@ -574,3 +574,33 @@ state before assuming.
 Debug: `systemctl status minio` / `journalctl -u minio -n 50` on the VM;
 `curl localhost:9000/minio/health/live` there; from a k3s node,
 `curl http://192.168.102.114:9000/minio/health/live`.
+
+## Tempo
+
+Runs on algovn-data as a podman quadlet (ansible role `tempo`, tag `tempo`), config at
+`/etc/tempo/tempo.yaml`, WAL at `/var/tempo`, listening on **:3200** (HTTP query),
+**:4317** (OTLP gRPC) and **:4318** (OTLP HTTP). S3-backed against the VM's own MinIO
+at `localhost:9000`, bucket `tempo`, 72 h retention — same settings the Helm chart had.
+
+In-cluster, `tempo.tracing.svc:3200` / `:4317` / `:4318` is a **selector-less Service +
+Endpoints** (`platform/tracing/manifests/`) pointing at `192.168.102.114`. Grafana's
+Tempo datasource and every service's OTLP exporter keep working unchanged.
+
+Moved to algovn-data rather than algovn-obs because it is S3-backed against MinIO and a
+VM-hosted Tempo cannot resolve cluster DNS or reach a ClusterIP. With both on the same VM
+and `Network=host`, the S3 endpoint is `localhost:9000`.
+
+**No data migration was needed** — blocks live in the `tempo` bucket, which the MinIO
+cutover mirrored. Existing history was preserved.
+
+Tempo reads the same OpenBao entry as MinIO's root credentials (`algovn/radio-lab/minio`,
+properties `username`/`password`), so it authenticates as root — matching radio-service
+and tts-service (the-race is the only one with its own MinIO identity).
+
+**Rollback** — app `tracing`, PV and PVC are chart-managed. Follow "Rollback — rebind
+the surviving `Retain` PV" under Cutover mechanics if the PVC was pruned. Step 1 is
+restoring the tempo chart source in `clusters/algovn/platform/tracing.yaml`.
+
+Debug: `systemctl status tempo` / `journalctl -u tempo -n 50` on the VM;
+`curl localhost:3200/ready` there; from a k3s node,
+`curl http://192.168.102.114:3200/ready`.

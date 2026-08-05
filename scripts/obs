@@ -67,7 +67,7 @@ free_port() {
 service_host() {
   case "$1" in
     loki)  echo obs ;;       # algovn-obs since Phase 2
-    tempo) echo cluster ;;   # in-cluster until Phase 3
+    tempo) echo data ;;
     *)     echo cluster ;;
   esac
 }

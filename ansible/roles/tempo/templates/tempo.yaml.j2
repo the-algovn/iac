@@ -1,0 +1,35 @@
+# Equivalent to what platform/tracing/tempo-values.yaml gave the Helm chart.
+# S3 points at MinIO on this same VM — localhost, since both run with Network=host.
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: localhost:9000
+      insecure: true
+      access_key: {{ tempo_s3_access }}
+      secret_key: {{ tempo_s3_secret }}
+    wal:
+      path: /var/tempo/wal
+
+compactor:
+  compaction:
+    block_retention: 72h
+
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 20000000
+      burst_size_bytes: 30000000

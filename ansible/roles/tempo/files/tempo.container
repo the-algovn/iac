@@ -1,0 +1,19 @@
+[Unit]
+Description=Tempo distributed tracing
+After=network-online.target minio.service
+Wants=network-online.target
+
+[Container]
+Image=docker.io/grafana/tempo:2.9.0
+# Network=host, never PublishPort — see docs/runbooks/stateful-vms.md.
+Network=host
+Volume=/etc/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro,Z
+Volume=/var/tempo:/var/tempo:Z
+Exec=-config.file=/etc/tempo/tempo.yaml
+
+[Service]
+Restart=always
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

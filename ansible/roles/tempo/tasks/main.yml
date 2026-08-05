@@ -1,0 +1,74 @@
+# Tempo reads the SAME OpenBao entry as MinIO's own root credentials —
+# `algovn/radio-lab/minio`, properties `username` / `password`. The in-cluster
+# `tempo-minio-creds` ExternalSecret just remaps them onto keys named
+# `access` / `secret`, so do not look for an entry by that name in OpenBao;
+# there isn't one. Tempo therefore authenticates to MinIO as root, matching
+# radio-service and tts-service (the-race is the only one with its own identity).
+- name: Read Tempo's MinIO credentials from OpenBao
+  ansible.builtin.uri:
+    url: "{{ bao_addr }}/v1/secret/data/algovn/radio-lab/minio"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ bao_token }}"
+    status_code: 200
+  register: tempo_creds
+  no_log: true
+
+- name: Expose them to the template
+  ansible.builtin.set_fact:
+    tempo_s3_access: "{{ tempo_creds.json.data.data.username }}"
+    tempo_s3_secret: "{{ tempo_creds.json.data.data.password }}"
+  no_log: true
+
+- name: Assert the credentials arrived
+  ansible.builtin.assert:
+    that:
+      - tempo_s3_access | length > 0
+      - tempo_s3_secret | length > 0
+    fail_msg: OpenBao returned empty Tempo S3 credentials
+
+- name: Create the Tempo directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/tempo
+    - /var/tempo
+
+- name: Set /var/tempo ownership for the Tempo container
+  ansible.builtin.file:
+    path: /var/tempo
+    owner: "10001"
+    group: "10001"
+    state: directory
+
+- name: Install the Tempo config
+  ansible.builtin.template:
+    src: tempo.yaml.j2
+    dest: /etc/tempo/tempo.yaml
+    owner: "10001"
+    group: "10001"
+    mode: "0600"
+  no_log: true
+  notify: restart tempo
+
+- name: Install the Tempo quadlet
+  ansible.builtin.copy:
+    src: tempo.container
+    dest: /etc/containers/systemd/tempo.container
+    mode: "0644"
+  notify: restart tempo
+
+- name: Reload systemd so the quadlet generator runs
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start Tempo
+  ansible.builtin.systemd:
+    name: tempo.service
+    state: started
+    enabled: true
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

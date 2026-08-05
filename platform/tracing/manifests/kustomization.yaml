@@ -3,3 +3,5 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - minio-creds-external.yaml
+  - service.yaml
+  - endpoints.yaml
