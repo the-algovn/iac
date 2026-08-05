@@ -1,0 +1,20 @@
+[Unit]
+Description=VictoriaMetrics single-node TSDB
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/victoriametrics/victoria-metrics:v1.147.0
+# Network=host, never PublishPort — see docs/runbooks/stateful-vms.md.
+Network=host
+Volume=/var/lib/victoria-metrics:/victoria-metrics-data:Z
+# retentionPeriod matches what platform/monitoring/values.yaml gave the VMSingle CR.
+# memory.allowedPercent guards the 8 GB obs VM: VictoriaMetrics sizes internal
+# buffers per visible CPU and was OOMKilled repeatedly on w1's 16 cores.
+Exec=-retentionPeriod=15d -httpListenAddr=:8428 -memory.allowedPercent=60
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

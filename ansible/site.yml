@@ -61,3 +61,4 @@
   roles:
     - { role: loki, tags: [loki] }
     - { role: uptime_kuma, tags: [uptime_kuma] }
+    - { role: victoria_metrics, tags: [victoria_metrics] }
