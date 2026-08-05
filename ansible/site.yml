@@ -54,3 +54,9 @@
   become: true
   roles:
     - { role: node_exporter, tags: [node_exporter] }
+
+- name: Observability services on the obs VM
+  hosts: obs
+  become: true
+  roles:
+    - { role: loki, tags: [loki] }

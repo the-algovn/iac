@@ -1,0 +1,42 @@
+- name: Create the Loki data directory
+  ansible.builtin.file:
+    path: /var/lib/loki
+    state: directory
+    # 10001 is the uid the grafana/loki image runs as; the bind mount must be
+    # writable by it or Loki exits immediately with a permission error on the WAL.
+    owner: "10001"
+    group: "10001"
+    mode: "0750"
+
+- name: Create the Loki config directory
+  ansible.builtin.file:
+    path: /etc/loki
+    state: directory
+    mode: "0755"
+
+- name: Install the Loki config
+  ansible.builtin.copy:
+    src: loki.yaml
+    dest: /etc/loki/loki.yaml
+    mode: "0644"
+  notify: restart loki
+
+- name: Install the Loki quadlet
+  ansible.builtin.copy:
+    src: loki.container
+    dest: /etc/containers/systemd/loki.container
+    mode: "0644"
+  notify: restart loki
+
+- name: Reload systemd so the quadlet generator runs
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start Loki
+  ansible.builtin.systemd:
+    name: loki.service
+    state: started
+    enabled: true
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

@@ -1,0 +1,20 @@
+[Unit]
+Description=Loki log store
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/grafana/loki:3.6.7
+# Network=host, never PublishPort: a published port is DNAT'd and forwarded, so it
+# never reaches filter/INPUT where the ufw node-IP rules live, and netavark's FORWARD
+# chain runs before every ufw chain. Measured 2026-08-04 — see stateful-vms.md.
+Network=host
+Volume=/etc/loki/loki.yaml:/etc/loki/loki.yaml:ro,Z
+Volume=/var/lib/loki:/loki:Z
+Exec=-config.file=/etc/loki/loki.yaml
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

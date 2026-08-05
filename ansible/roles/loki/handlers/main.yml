@@ -1,0 +1,7 @@
+# daemon-reload first: quadlet units are generated at reload time, so a changed
+# .container file has no effect until the generator has re-run.
+- name: restart loki
+  ansible.builtin.systemd:
+    name: loki.service
+    state: restarted
+    daemon_reload: true
