@@ -1,8 +1,10 @@
-# Host metrics for the two stateful-service VMs. They are not cluster members, so
-# there is no Service or Pod for the operator to discover — a static target list is
-# the only option. vmagent stays in-cluster and keeps CR-driven discovery, which is
-# why this is a CR in Argo rather than hand-written scrape config on the VM.
-# Phase 3 appends postgres_exporter (9187) and redis_exporter (9121) here.
+# Metrics for the two stateful-service VMs — both the hosts and the services that
+# moved onto them. They are not cluster members, so there is no Service or Pod for
+# the operator to discover — a static target list is the only option. vmagent stays
+# in-cluster and keeps CR-driven discovery, which is why this is a CR in Argo rather
+# than hand-written scrape config on the VM.
+# Phase 3 appends postgres_exporter (9187) and redis_exporter (9121) here, plus
+# Tempo (3200) once it moves.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMStaticScrape
 metadata:
@@ -11,8 +13,21 @@ metadata:
 spec:
   jobName: stateful-vms
   targetEndpoints:
+    # node_exporter on both VMs.
     - targets:
         - 192.168.102.114:9100
         - 192.168.102.115:9100
+      path: /metrics
+      scheme: http
+    # The observability services themselves, on algovn-obs. Before Phase 2 the
+    # in-cluster VMSingle was scraped by the operator's own VMServiceScrape; moving
+    # it to a VM removed that, leaving the metrics store with nothing watching it —
+    # `vm_rows`, `vm_free_disk_space_bytes` and `vm_slow_inserts_total` all vanished,
+    # so a degrading TSDB would have gone unnoticed until it stopped answering.
+    # Loki is here for the same reason. ufw on obs already allows both ports from
+    # the k3s node IPs, so no firewall change is needed.
+    - targets:
+        - 192.168.102.115:8428   # VictoriaMetrics — scrapes itself via vmagent
+        - 192.168.102.115:3100   # Loki
       path: /metrics
       scheme: http
