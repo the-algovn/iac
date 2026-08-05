@@ -63,7 +63,7 @@ on the next real role change.
   `argocd.argoproj.io/sync-options: ServerSideApply=true` — that's why `postgres-dashboard` carries it.
 - Disk: local-path can NOT expand and does NOT enforce the 10Gi size — the real limit is w1's disk, still shared with redis, minio, redpanda and tempo (vmsingle, loki and uptime-kuma left for algovn-obs in phase 2). Watch node fs on dashboard; growth path is manual dump/restore.
 - NEVER label nodes `svccontroller.k3s.cattle.io/enablelb` — flips ALL svclb LBs (incl. Kong 80/443) into allow-list mode.
-- Cluster CR carries `argocd.argoproj.io/sync-options: Prune=false` — deleting cluster.yaml in git will NOT delete the database (PV reclaim is Delete; this is the guardrail).
+- Cluster CR carries `argocd.argoproj.io/sync-options: Prune=false` — deleting cluster.yaml in git will NOT delete the database. Note the PV reclaim policy is `Retain` (patched 2026-08-04), so even a deleted PVC leaves the data on disk — but the PV is then `Released` and will not rebind until its stale `claimRef` is cleared. See docs/runbooks/stateful-vms.md.
 
 ## Monitoring
 VMPodScrape `postgres` (ns monitoring) scrapes `:9187/metrics` (`cnpg_*` series). Since phase 2 the

@@ -85,5 +85,8 @@ TrueNAS and Immich logins respectively. See cloudflare-access.md.
   addresses, so `2405:…:be24:11ff:feXX:YYZZ` decodes to MAC `bc:24:11:XX:YY:ZZ`, which
   `qm config <vmid>` matches to a VM. That is how a tunnel's host is identified.
 - `curl https://<host>/` → 302 to the Access login means gated; 200 = no gate.
-- Kong route not working? Check the Endpoints object exists
-  (`kubectl get endpoints -n <ns>`); a 503 with a Synced Application means it does not.
+- Kong route not working? Check the EndpointSlices for the Service
+  (`kubectl get endpointslice -n <ns> -l kubernetes.io/service-name=<svc>`); a 503
+  with a Synced Application means there is no ready backend. Use `endpointslice`,
+  not the deprecated `endpoints` — a stale slice left by a cutover is invisible
+  through the old API.
