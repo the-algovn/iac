@@ -105,9 +105,15 @@ been reached and this alert has never fired for real. Expect the *edge* to refus
 connections long before acp's own cap does.
 
 First three checks:
-1. `sum(acp_sse_clients)` and `max(process_resident_memory_bytes{namespace="api-control-plane"})`
-   via the vmsingle HTTP API (`svc vmsingle-vm:8428`, see `docs/runbooks/postgres.md`
-   for the query pattern).
+1. `sum(acp_sse_clients)` and `max(process_resident_memory_bytes{namespace="api-control-plane"})`.
+   Since phase 2 the metrics store is on algovn-obs and there is no `vmsingle-vm`
+   Service to reach — query it over SSH (same pattern in `docs/runbooks/postgres.md`):
+
+       ssh obs 'curl -sG http://localhost:8428/api/v1/query \
+         --data-urlencode "query=sum(acp_sse_clients)" | jq ".data.result"'
+
+   An instant query hides the last ~30 s (`-search.latencyOffset`), so during a live
+   incident read the trend with `/api/v1/query_range` — see stateful-vms.md.
 2. `kubectl --context algovn-remote -n api-control-plane get pods` — restarts, per-pod
    RSS split evenly across the 2 replicas?
 3. Apply knob 2 (lower `SSE_MAX_CONNS`) first; scale acp (knob 3) if RSS stays high

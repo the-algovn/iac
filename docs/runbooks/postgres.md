@@ -61,14 +61,25 @@ on the next real role change.
 - App shows stale status after a fix: refresh the app directly — `argocd app get <app> --core --refresh` (refreshing root does not cascade to child apps).
 - Manifests >256KiB (e.g. vendored Grafana dashboard ConfigMaps) need the per-resource annotation
   `argocd.argoproj.io/sync-options: ServerSideApply=true` — that's why `postgres-dashboard` carries it.
-- Disk: local-path can NOT expand and does NOT enforce the 10Gi size — the real limit is w1's disk (shared with vmsingle/loki/uptime-kuma). Watch node fs on dashboard; growth path is manual dump/restore.
+- Disk: local-path can NOT expand and does NOT enforce the 10Gi size — the real limit is w1's disk, still shared with redis, minio, redpanda and tempo (vmsingle, loki and uptime-kuma left for algovn-obs in phase 2). Watch node fs on dashboard; growth path is manual dump/restore.
 - NEVER label nodes `svccontroller.k3s.cattle.io/enablelb` — flips ALL svclb LBs (incl. Kong 80/443) into allow-list mode.
 - Cluster CR carries `argocd.argoproj.io/sync-options: Prune=false` — deleting cluster.yaml in git will NOT delete the database (PV reclaim is Delete; this is the guardrail).
 
 ## Monitoring
-VMPodScrape `postgres` (ns monitoring) scrapes `:9187/metrics` (`cnpg_*` series). vmsingle HTTP API:
-svc `vmsingle-vm` port 8428. Grafana dashboard: "CloudNativePG" (uid `cloudnative-pg`, dashboard
-20417, vendored ConfigMap `postgres-dashboard`).
+VMPodScrape `postgres` (ns monitoring) scrapes `:9187/metrics` (`cnpg_*` series). Since phase 2 the
+metrics store runs on algovn-obs — there is no `vmsingle-vm` Service left to port-forward, and
+`vmagent` in the cluster only writes to it. Query it over SSH (this is the pattern the other
+runbooks refer to):
+
+    ssh obs 'curl -sG http://localhost:8428/api/v1/query \
+      --data-urlencode "query=cnpg_pg_replication_lag" | jq ".data.result"'
+
+⚠️ VictoriaMetrics defaults `-search.latencyOffset=30s`, so an **instant** query cannot see a
+sample written in the last ~30 s. Wait ~40 s before reading an empty result as broken, or use
+`/api/v1/query_range` — see docs/runbooks/stateful-vms.md.
+
+Grafana dashboard: "CloudNativePG" (uid `cloudnative-pg`, dashboard 20417, vendored ConfigMap
+`postgres-dashboard`).
 
 ## Upgrades
 Operator: bump chart pin in `clusters/algovn/platform/cnpg.yaml` (watch CNPG EOL: 1.30.x ~Dec 2026).
