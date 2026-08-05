@@ -1,16 +1,18 @@
 fullnameOverride: vm
+# VictoriaMetrics STORAGE moved to algovn-obs 2026-08-04 (ansible role
+# victoria_metrics). Only the storage half moved: vmagent stays in-cluster so the 19
+# VMServiceScrape/VMPodScrape CRs keep working, and remote-writes to the VM.
+# The chart resolves {{ .vm.read }}/{{ .vm.write }} as "vmselect, vmsingle, or
+# external.vm.*", so these two URLs repoint vmagent, Grafana's datasource and
+# vmalert's routing together — verified with `helm template` before this landed.
 vmsingle:
-  spec:
-    retentionPeriod: 15d
-    storage:
-      accessModes: [ReadWriteOnce]
-      resources: { requests: { storage: 20Gi } }
-    resources:
-      requests: { cpu: 150m, memory: 512Mi }
-      # 768Mi OOMKilled repeatedly on algovn-w1 (16 cores vs Pi's 4 — VM sizes internal
-      # concurrency buffers per visible CPU, e.g. search.maxConcurrentRequests=16 default;
-      # exit 137, 9 restarts on 2026-07-12)
-      limits: { memory: 4Gi }
+  enabled: false
+external:
+  vm:
+    read:
+      url: http://192.168.102.115:8428
+    write:
+      url: http://192.168.102.115:8428
 vmagent:
   spec:
     resources:
