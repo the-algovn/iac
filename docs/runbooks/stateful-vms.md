@@ -264,3 +264,27 @@ vmagent not selecting the CR rather than anything on the VMs:
 
 If that is not `true`, vmagent only picks up CRs matching its explicit selectors and
 this one is ignored silently — the VMs stay invisible with no error anywhere.
+
+## Loki
+
+Runs on algovn-obs as a podman quadlet (ansible role `loki`, tag `loki`), config at
+`/etc/loki/loki.yaml`, data at `/var/lib/loki`, listening on **:3100**. Filesystem
+storage, 168 h retention — same settings the Helm chart had.
+
+In-cluster, `loki.logging.svc:3100` is a **selector-less Service + Endpoints**
+(`platform/logging/manifests/`) pointing at `192.168.102.115`. That is why
+`alloy`'s push URL and Grafana's Loki datasource were never edited — the name still
+resolves. The loki Helm chart source was removed from
+`clusters/algovn/platform/logging.yaml`; alloy remains a chart.
+
+If logs stop flowing while the `logging` app reads Synced/Healthy, check
+`kubectl get endpoints -n logging loki` FIRST. Argo excludes Endpoints by default and
+`platform/argocd/patches/exclusions-cm.yaml` is what re-includes them.
+
+Existing history was NOT migrated (168 h retention, and copying a live TSDB index
+risks corrupting it). The pre-cutover PVC `storage-loki-0` and its `Retain` PV are
+still on algovn-w1 — that is the rollback path, not a live store.
+
+Debug: `systemctl status loki` and `journalctl -u loki -n 50` on the VM;
+`curl localhost:3100/ready` there; from a k3s node,
+`curl http://192.168.102.115:3100/ready`.
