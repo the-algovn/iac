@@ -16,8 +16,14 @@ normal, not broken.
 
 ## The loop
 
-Run everything through `iac/scripts/obs`. It port-forwards to Loki (and Tempo,
-once deployed) and cleans up after itself on exit.
+Run everything through `iac/scripts/obs`. It opens a temporary forward to each
+backend and cleans up after itself on exit — an SSH tunnel to `obs` for Loki,
+which has run on the algovn-obs VM since the phase 2 migration, and a
+`kubectl port-forward` for Tempo, which is still in-cluster. Which is which
+lives in the script's `service_host()` table; a service that moves to a VM and
+is not added there fails with `could not reach <service>`, because
+`kubectl port-forward` cannot attach to the selector-less Service it leaves
+behind. See `iac/docs/runbooks/stateful-vms.md`, "Cutover mechanics".
 
 **1. If you have a trace ID, start there.**
 
