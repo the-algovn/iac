@@ -2,6 +2,14 @@
   ansible.builtin.file:
     path: /var/lib/uptime-kuma
     state: directory
+    # No owner on purpose: the louislam/uptime-kuma image declares no USER, so the
+    # container runs as root and writes this bind mount as root — unlike Loki,
+    # whose image declares USER 10001 and therefore needs the directory chowned.
+    # Verified 2026-08-05: `podman image inspect … --format '{{.Config.User}}'` is
+    # empty and `podman top systemd-uptime-kuma huser` reports root.
+    # This is a real coupling to the image, not a don't-care. If a tag bump ever
+    # adds a USER, the service fails at startup on a permission error against
+    # /app/data — set owner/group to that uid here, as the loki role does.
     mode: "0755"
 
 - name: Install the uptime-kuma quadlet
