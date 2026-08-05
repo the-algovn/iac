@@ -282,8 +282,68 @@ If logs stop flowing while the `logging` app reads Synced/Healthy, check
 `platform/argocd/patches/exclusions-cm.yaml` is what re-includes them.
 
 Existing history was NOT migrated (168 h retention, and copying a live TSDB index
-risks corrupting it). The pre-cutover PVC `storage-loki-0` and its `Retain` PV are
-still on algovn-w1 — that is the rollback path, not a live store.
+risks corrupting it).
+
+### Argo prunes chart-managed PVCs
+
+The PVC `storage-loki-0` was pruned by Argo along with the StatefulSet — a
+**chart-managed PVC is pruned by Argo when the chart source is removed**. The later
+cutovers (Postgres, MinIO, Redis) all follow the same "remove chart source, let Argo
+prune" pattern and share this behaviour.
+
+PV `pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a` survives with
+`persistentVolumeReclaimPolicy: Retain`, status `Released`, and 131 MB of data intact
+at `/var/lib/rancher/k3s/storage/pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a_logging_storage-loki-0`
+on algovn-w1.
+
+### Rollback
+
+Reverting is NOT a one-line revert. The PVC must be recreated and bound to the
+surviving PV before Argo can recreate the StatefulSet:
+
+```bash
+# 1. Restore the loki chart source in clusters/algovn/platform/logging.yaml and push.
+# 2. Clear the PV's claimRef so a new PVC of the same name can bind it:
+kubectl --context algovn-remote patch pv pvc-819f5e0e-d1a0-4324-90a2-869219f8d80a \
+  -p '{"spec":{"claimRef":null}}'
+# 3. Trigger a hard refresh — Argo may report Synced/Healthy without pruning
+#    the manifests source or syncing the restored chart (see below):
+kubectl --context algovn-remote -n argocd annotate app logging \
+  argocd.argoproj.io/refresh=hard
+# 4. Verify the new PVC bound the existing PV:
+kubectl --context algovn-remote -n logging get pvc storage-loki-0
+# Expected: STATUS=Bound, VOLUME=pvc-819f5e0e-…
+# 5. Remove the annotation so Argo does not report perpetual drift:
+kubectl --context algovn-remote -n argocd annotate app logging \
+  argocd.argoproj.io/refresh-
+```
+
+The `claimRef` clear is the critical step — without it, the PV is `Released` and
+cannot bind a new PVC even one with the same name; the StatefulSet sits Pending
+forever.
+
+### Argo hard-refresh after source changes
+
+When the set of sources in an Argo Application changes (remove one chart, add a
+`path` source), Argo may report `Synced/Healthy` while old resources from the
+removed chart are still present. A `hard` refresh forces re-evaluation:
+
+```bash
+kubectl --context algovn-remote -n argocd annotate app logging \
+  argocd.argoproj.io/refresh=hard
+```
+
+Once pruning completes, remove the annotation — a persistent `refresh` annotation
+makes Argo report perpetual OutOfSync even when nothing drifted:
+
+```bash
+kubectl --context algovn-remote -n argocd annotate app logging \
+  argocd.argoproj.io/refresh-
+```
+
+This is especially load-bearing when cutting over a database: a green app with
+the old in-cluster instance still running means the old instance is still taking
+writes, which for Postgres is a split brain.
 
 Debug: `systemctl status loki` and `journalctl -u loki -n 50` on the VM;
 `curl localhost:3100/ready` there; from a k3s node,
