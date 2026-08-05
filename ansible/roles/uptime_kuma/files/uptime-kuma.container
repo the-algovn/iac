@@ -20,6 +20,9 @@ Volume=/var/lib/uptime-kuma:/app/data:Z
 
 [Service]
 Restart=always
+# quadlet pulls the image inside ExecStart, so a fresh-VM rebuild over a slow link
+# blows through systemd's 90 s default and fails with a timeout that names nothing.
+TimeoutStartSec=600
 
 [Install]
 WantedBy=multi-user.target
