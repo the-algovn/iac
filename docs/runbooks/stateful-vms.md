@@ -545,3 +545,32 @@ verified via `query_range`:
 Debug: `systemctl status victoria-metrics` / `journalctl -u victoria-metrics` on the
 VM; `curl localhost:8428/health` there; `kubectl -n monitoring logs deploy/vmagent-vm`
 for write failures.
+
+## MinIO
+
+Runs on algovn-data as a podman quadlet (ansible role `minio`, tag `minio`), data at
+`/var/lib/minio`, listening on **:9000** (S3) and **:9001** (console). Root credentials
+come from OpenBao and must match the cluster's `minio-root` ExternalSecret — if they
+drift, the two in-cluster provisioning Jobs fail and consumers cannot authenticate.
+
+In-cluster, `minio.minio.svc:9000` is a **selector-less Service + Endpoints**
+(`platform/minio/manifests/`) pointing at `192.168.102.114`. The StatefulSet was
+deleted; the two provisioning Jobs (`minio-bucket-radio-lab` and
+`minio-provision-the-race`) still run in-cluster as PostSync hooks and are what
+recreate the `the-race` IAM user — **IAM lives in MinIO's IAM store, not in bucket
+data, so `mc mirror` does not carry it across.** Without that Job, every race goes out
+silent while the AI still writes the lines.
+
+### Rollback
+
+App `minio`, PV `pvc-f3c0cdc9-70cf-4619-a99e-09a8716b991c`, PVC `data-minio-0` in ns
+`minio`. Follow "Rollback — rebind the surviving `Retain` PV" under Cutover mechanics.
+Step 1 is restoring `statefulset.yaml` and reverting the Service (put `selector: {
+app: minio }` back), plus removing `endpoints.yaml` from `kustomization.yaml`. The PV
+survived the pruning (hand-written volumeClaimTemplates behave differently from
+chart-managed ones), so `claimRef` clearing may not be needed — but verify the PVC
+state before assuming.
+
+Debug: `systemctl status minio` / `journalctl -u minio -n 50` on the VM;
+`curl localhost:9000/minio/health/live` there; from a k3s node,
+`curl http://192.168.102.114:9000/minio/health/live`.
