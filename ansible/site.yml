@@ -55,6 +55,13 @@
   roles:
     - { role: node_exporter, tags: [node_exporter] }
 
+- name: Data services on the data VM
+  hosts: data
+  become: true
+  roles:
+    - { role: bao_secrets, tags: [minio, redpanda, redis, postgres] }
+    - { role: minio, tags: [minio] }
+
 - name: Observability services on the obs VM
   hosts: obs
   become: true

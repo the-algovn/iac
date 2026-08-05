@@ -1,0 +1,22 @@
+[Unit]
+Description=MinIO object storage
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+# Network=host, never PublishPort: a published port is DNAT'd and forwarded, so it
+# never reaches filter/INPUT where the ufw node-IP rules live, and netavark's FORWARD
+# chain runs before every ufw chain. Measured 2026-08-04 — see stateful-vms.md.
+Network=host
+Volume=/var/lib/minio:/data:Z
+EnvironmentFile=/etc/minio/minio.env
+Exec=server /data --console-address :9001
+
+[Service]
+Restart=always
+# Quadlet pulls the image inside ExecStart; the default 90s loses a slow first pull.
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

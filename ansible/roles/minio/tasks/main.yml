@@ -1,0 +1,62 @@
+- name: Read the MinIO root credentials from OpenBao
+  ansible.builtin.uri:
+    url: "{{ bao_addr }}/v1/secret/data/algovn/radio-lab/minio"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ bao_token }}"
+    status_code: 200
+  register: minio_root
+  no_log: true
+
+- name: Expose them to the template
+  ansible.builtin.set_fact:
+    minio_root_user: "{{ minio_root.json.data.data.username }}"
+    minio_root_password: "{{ minio_root.json.data.data.password }}"
+  no_log: true
+
+- name: Assert the credentials arrived
+  ansible.builtin.assert:
+    that:
+      - minio_root_user | length > 0
+      - minio_root_password | length > 0
+    fail_msg: OpenBao returned empty MinIO root credentials
+
+- name: Create the MinIO data directory
+  ansible.builtin.file:
+    path: /var/lib/minio
+    state: directory
+    mode: "0755"
+
+- name: Create the MinIO config directory
+  ansible.builtin.file:
+    path: /etc/minio
+    state: directory
+    mode: "0700"
+
+- name: Install the MinIO environment file
+  ansible.builtin.template:
+    src: minio.env.j2
+    dest: /etc/minio/minio.env
+    mode: "0600"
+  no_log: true
+  notify: restart minio
+
+- name: Install the MinIO quadlet
+  ansible.builtin.copy:
+    src: minio.container
+    dest: /etc/containers/systemd/minio.container
+    mode: "0644"
+  notify: restart minio
+
+- name: Reload systemd so the quadlet generator runs
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start MinIO
+  ansible.builtin.systemd:
+    name: minio.service
+    state: started
+    enabled: true
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
