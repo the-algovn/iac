@@ -723,6 +723,113 @@ Debug: `systemctl status redpanda` / `journalctl -u redpanda -n 50` on the VM;
 `curl localhost:9644/v1/status/ready` there; from a k3s node,
 `curl http://192.168.102.114:9644/v1/status/ready`.
 
+## Redis
+
+Runs on algovn-data as a native apt package from the redis.io repo (ansible role
+`redis_server`, tag `redis`), data at `/var/lib/redis`, listening on **:6379**.
+`redis_exporter` listens on **:9121**. Both are native systemd units, not containers.
+
+In-cluster, `redis.redis.svc:6379` / `:9121` is a **selector-less Service +
+Endpoints** (`platform/redis/manifests/`) pointing at `192.168.102.114`. The-button's
+`REDIS_URL` secret (`redis://***@redis.redis.svc:6379`) stayed valid unchanged.
+
+`maxmemory-policy noeviction` is load-bearing: `counter:global` and `applied:<id>` keys
+make the-button's click accounting exactly-once, and evicting one under memory pressure
+would silently corrupt the public counter exactly as data loss would. Verify with
+`config get maxmemory-policy`, not by reading the config file.
+
+### Migrating data from the in-cluster instance
+
+This is a data-bearing migration — the dataset is small (~22 keys, ~312 K) but the
+counter value is publicly visible. The procedure is a guarded SAVE-then-copy.
+
+**The AOF silently wins over dump.rdb.** With `appendonly yes`, removing the AOF files
+is NOT enough: Redis then creates a fresh empty AOF on startup and loads that instead
+of `dump.rdb`, coming up with `dbsize 0` and no error at all. The working sequence
+temporarily disables AOF, loads the RDB, verifies, then re-enables AOF:
+
+```bash
+# 1. Stop the writers — the-button uses selfHeal: true, so work quickly.
+#    Argo restores replicas within its reconcile window.
+kubectl --context algovn-remote -n the-button scale deploy the-button-service --replicas=0
+kubectl --context algovn-remote -n the-button scale deploy the-button-worker --replicas=0
+
+# 2. Record the authoritative counter:global from the in-cluster Redis, then SAVE
+#    and copy dump.rdb to the VM.
+kubectl --context algovn-remote -n redis exec redis-0 -c redis -- \
+  sh -c 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning get counter:global'
+# → 79 (record this number)
+kubectl --context algovn-remote -n redis exec redis-0 -c redis -- \
+  sh -c 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning save'
+kubectl --context algovn-remote -n redis cp redis-0:/data/dump.rdb /tmp/redis-dump.rdb -c redis
+scp /tmp/redis-dump.rdb data:/tmp/dump.rdb
+
+# 3. Load on the VM — this is the sequence that actually works.
+#    Stopping first avoids the conflict between systemd's Type=notify and a DB swap.
+ssh data 'sudo systemctl stop redis-server'
+ssh data 'sudo rm -rf /var/lib/redis/appendonlydir /var/lib/redis/appendonly.aof'
+ssh data 'sudo cp /tmp/dump.rdb /var/lib/redis/dump.rdb && sudo chown redis:redis /var/lib/redis/dump.rdb'
+ssh data 'sudo sed -i "s/^appendonly yes/appendonly no/" /etc/redis/redis.conf'
+ssh data 'sudo systemctl start redis-server'
+
+# 4. Verify — this is the gate. A mismatch means redo the copy.
+ssh data 'sudo redis-cli -a "$(sudo grep ^requirepass /etc/redis/redis.conf | cut -d" " -f2)" --no-auth-warning get counter:global'
+# → must match the recorded value exactly
+ssh data 'sudo redis-cli -a "$(sudo grep ^requirepass /etc/redis/redis.conf | cut -d" " -f2)" --no-auth-warning dbsize'
+# → 22
+
+# 5. Re-enable AOF — write the AOF from the in-memory dataset, then persist in config.
+ssh data 'sudo redis-cli -a "$(sudo grep ^requirepass /etc/redis/redis.conf | cut -d" " -f2)" --no-auth-warning config set appendonly yes'
+ssh data 'sudo sed -i "s/^appendonly no/appendonly yes/" /etc/redis/redis.conf'
+```
+
+The RDB load takes under a second. The counter verification is the safety net — if
+Argo restarted the writers mid-copy, the counter will differ.
+
+### Cutover
+
+Strip the selector from `platform/redis/manifests/service.yaml` (leave both ports —
+6379 named `redis` and 9121 named `metrics`, since the exporter now runs on the VM),
+add `endpoints.yaml` against `192.168.102.114`, delete `statefulset.yaml`, update
+`kustomization.yaml`, and add `192.168.102.114:9121` to
+`platform/monitoring/manifests/vmstaticscrape-stateful-vms.yaml`. Push, hard-refresh
+Argo, verify `redis-0` is gone and the Service has no selector.
+
+Expect a stale EndpointSlice from the pre-cutover pod — delete it:
+
+```bash
+kubectl --context algovn-remote delete endpointslice -n redis -l kubernetes.io/service-name=redis
+# Wait for Argo to recreate it with the VM's IP, then verify only one:
+kubectl --context algovn-remote get endpointslice -n redis -l kubernetes.io/service-name=redis
+```
+
+The in-cluster `VMServiceScrape` still selects the Service by its `app: redis` label
+and discovers the VM's exporter through the manual Endpoints — so metrics keep flowing
+without editing the scrape CR.
+
+Restore the-button writers (Argo's selfHeal does this, but force it):
+
+```bash
+kubectl --context algovn-remote -n argocd annotate app the-button argocd.argoproj.io/refresh=hard
+# Wait for sync, then remove the annotation:
+kubectl --context algovn-remote -n argocd annotate app the-button argocd.argoproj.io/refresh-
+kubectl --context algovn-remote -n the-button get deploy  # expect the-button-service 2/2, the-button-worker 1/1
+```
+
+**Rollback** — app `redis`, PV `pvc-4257dfb4-f4cc-4428-ba8f-413d21bf82a0`, PVC
+`data-redis-0` in ns `redis`. Follow "Rollback — rebind the surviving `Retain` PV"
+under Cutover mechanics. Step 1 is restoring `statefulset.yaml`, reverting the Service
+(put `selector: { app: redis }` back) and removing `endpoints.yaml` from
+`kustomization.yaml`. The PVC survived the cutover (volumeClaimTemplates PVCs are not
+deleted with the StatefulSet); the PV was already patched to `Retain`.
+
+A rollback to the in-cluster instance loses any writes made since the cutover.
+`counter:global` will be behind — there is no replication between the two.
+
+Debug: `systemctl status redis-server` / `journalctl -u redis-server -n 50` on the VM;
+`redis-cli -a "$PW" --no-auth-warning ping` there; from a k3s node,
+`redis-cli -h 192.168.102.114 -a "$PW" --no-auth-warning ping`.
+
 ## Tempo
 
 Runs on algovn-data as a podman quadlet (ansible role `tempo`, tag `tempo`), config at
