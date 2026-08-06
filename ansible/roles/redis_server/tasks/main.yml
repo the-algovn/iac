@@ -1,0 +1,71 @@
+- name: Install the redis.io signing key
+  ansible.builtin.get_url:
+    url: https://packages.redis.io/gpg
+    dest: /etc/apt/keyrings/redis.asc
+    mode: "0644"
+
+- name: Add the redis.io apt repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/redis.asc] https://packages.redis.io/deb {{ ansible_distribution_release }} main"
+    filename: redis
+    state: present
+
+- name: Install redis-server and its exporter
+  ansible.builtin.apt:
+    name:
+      - redis-server
+      - prometheus-redis-exporter
+    state: present
+    update_cache: true
+
+- name: Read the Redis password from OpenBao
+  ansible.builtin.uri:
+    url: "{{ bao_addr }}/v1/secret/data/algovn/redis/redis-auth"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ bao_token }}"
+    status_code: 200
+  register: redis_secret
+  no_log: true
+
+- name: Expose it to the template
+  ansible.builtin.set_fact:
+    redis_password: "{{ redis_secret.json.data.data.password }}"
+  no_log: true
+
+- name: Assert the password arrived
+  ansible.builtin.assert:
+    that:
+      - redis_password | length > 0
+    fail_msg: OpenBao returned an empty Redis password
+
+- name: Install redis.conf
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis/redis.conf
+    owner: redis
+    group: redis
+    mode: "0640"
+  no_log: true
+  notify: restart redis
+
+- name: Point the exporter at the local Redis
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-redis-exporter
+    content: |
+      ARGS="--redis.addr=redis://localhost:6379 --redis.password={{ redis_password }}"
+    mode: "0600"
+  no_log: true
+  notify: restart redis exporter
+
+- name: Enable redis-server and the exporter
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - redis-server
+    - prometheus-redis-exporter
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers

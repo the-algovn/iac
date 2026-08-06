@@ -1,0 +1,9 @@
+- name: restart redis
+  ansible.builtin.systemd:
+    name: redis-server
+    state: restarted
+
+- name: restart redis exporter
+  ansible.builtin.systemd:
+    name: prometheus-redis-exporter
+    state: restarted

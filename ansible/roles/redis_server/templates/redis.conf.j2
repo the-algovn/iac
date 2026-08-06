@@ -1,0 +1,18 @@
+# The redis.io apt package ships a systemd unit with Type=notify, which requires
+# Redis to send READY=1 once it has started. Without this, systemd waits 90 s and
+# kills the process with SIGTERM — even though Redis was actually ready.
+supervised systemd
+bind 0.0.0.0
+port 6379
+requirepass {{ redis_password }}
+appendonly yes
+appendfsync everysec
+dir /var/lib/redis
+# noeviction, NOT the default allkeys-lru: counter:global and applied:<id> are
+# load-bearing for the-button's exactly-once accounting, and evicting one under
+# memory pressure would silently corrupt the public counter exactly as data loss
+# would. maxmemory sits below the host's capacity so Redis rejects writes with an
+# OOM error at the ceiling — the service already treats Redis-unavailable as
+# reject-the-batch, failing closed.
+maxmemory 400mb
+maxmemory-policy noeviction
