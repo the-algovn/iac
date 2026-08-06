@@ -9,37 +9,30 @@ All stateful workloads are migrating off k3s onto two Proxmox VMs. Design:
 | algovn-data | 114 | 192.168.102.114 | 16 | 32G | 100G | postgres, redis, minio, redpanda, tempo |
 | algovn-obs | 115 | 192.168.102.115 | 4 | 8G | 64G | victoria-metrics, loki, uptime-kuma |
 
-## PV reclaim policy — do not revert
+## PV reclaim policy
 
-Every `local-path` PV was patched from `Delete` to `Retain` on 2026-08-04. At the time
-this was the ONLY safety net protecting cluster data — there were no backups at all,
-and the Phase 3 Postgres cutover deletes the CNPG `Cluster` CR, which cascades to its
-PVC. With `Delete`, that cascade destroys the database.
+Every `local-path` PV was patched from `Delete` to `Retain` on 2026-08-04, as the only
+safety net while the migration ran. **That phase is over.** On 2026-08-06 the
+pre-migration PVs and their data were deleted deliberately — there is no rollback to
+the in-cluster services, and `/var/lib/rancher/k3s/storage` on algovn-w1 is empty.
 
-Backups now exist (see `## Backups` below), but they cover the **VMs**, not the
-cluster's remaining local-path PVs. Those PVs still hold the pre-migration copies of
-every migrated service and are the rollback path, so `Retain` stays load-bearing until
-they are deliberately deleted.
-
-`local-path` provisions new PVs with `Delete` (it is the StorageClass default and
-is not configurable per-claim), so **any newly created PVC must be patched by
-hand**:
+The policy still matters for anything new: `local-path` provisions PVs with `Delete`
+(the StorageClass default, not configurable per-claim), so a newly created PVC gets no
+protection unless you patch it:
 
     kubectl --context algovn-remote patch pv <name> \
       -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
 
-Audit that none have drifted back:
+Audit:
 
     kubectl --context algovn-remote get pv -o json \
       | jq -r '[.items[] | select(.spec.storageClassName=="local-path")
                | select(.spec.persistentVolumeReclaimPolicy!="Retain")] | length'
 
-Expected: `0`. Anything else means a PV is unprotected.
-
-⚠️ `Retain` means deleting a PVC leaves the PV `Released` and the data on disk,
-but the PV will NOT rebind to a new claim of the same name — it must be deleted
-and recreated, or its `claimRef` cleared. That is the intended trade: manual work
-instead of silent destruction.
+⚠️ `Retain` means deleting a PVC leaves the PV `Released` with the data on disk, but it
+will NOT rebind to a new claim of the same name — clear its `claimRef` first. And note
+that deleting the PV object does **not** delete the data; the directory under
+`/var/lib/rancher/k3s/storage` has to be removed separately to reclaim the space.
 
 ## Build (or rebuild) the VMs
 
@@ -956,7 +949,7 @@ section is the point of the whole migration, not an appendix.
 | job | covers | schedule | retention |
 |---|---|---|---|
 | `algovn-data-nightly` | 114 (algovn-data) | daily 02:17 | `keep-daily=7` |
-| the original weekly job | 111, 112, 115, 121, 124 | Sundays 03:00 | `keep-weekly=2` |
+| the original weekly job | 111, 115, 121, 124 | Sundays 03:00 | `keep-weekly=4` |
 | `pg-dumpall.timer` (on the VM) | all Postgres databases | daily, before 02:17 | 7 of each series |
 
 `algovn-data` is nightly because it holds every database, object and counter in the
@@ -1014,17 +1007,17 @@ counts exactly (goose_db_version 3, room 6, race 6, spend_line 6).
 
 ### Capacity
 
-`/srv/backup` is 94 G. Steady state projects to roughly 72 G: nightly 114 at ~3.4 G
-compressed × 7, plus a ~24 G weekly set × 2. That is why `keep-weekly` was cut from 4
-to 2 — at 4 the weekly job alone did not fit, and it had been silently over-committed
-since before the migration.
+`/srv/backup` is 94 G; steady state projects to roughly 52 G — nightly 114 at ~3.4 G
+compressed × 7, plus a ~7 G weekly set × 4.
 
-`algovn-w1` (112) is the dominant cost at ~21.7 G per set, and it is now a **stateless
-worker**. It is still backed up only because the pre-migration PVs retained on that node
-are the rollback path. Once those are deleted, dropping 112 from the weekly job frees
-more than everything else here combined.
+`algovn-w1` (112) was dropped from the weekly job on 2026-08-06. It had been the
+dominant cost at ~21 G per set, and it was only ever backed up because the
+pre-migration PVs retained on it were the rollback path. Those are deleted, so w1 is
+now a genuinely stateless worker — rebuild it from `docs/runbooks/add-node.md` plus
+ansible rather than from an image. Removing it is also what made `keep-weekly=4`
+affordable again, after it had been briefly cut to 2.
 
-⚠️ The weekly job silently failed every run for an unknown period because it listed
-VMID 122, which no longer exists — vzdump errors on a missing guest and the job reports
-`job errors` while still backing up everything else. If the job reports errors, check
-that every vmid in `/etc/pve/jobs.cfg` still resolves before looking anywhere else.
+⚠️ The weekly job silently reported `job errors` on every run for an unknown period
+because it listed VMID 122, which no longer exists — vzdump errors on a missing guest
+while still backing up everything else. If the job reports errors, check that every
+vmid in `/etc/pve/jobs.cfg` still resolves before looking anywhere else.
