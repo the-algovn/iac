@@ -1,6 +1,6 @@
 # Stateful services on dedicated VMs
 
-All stateful workloads are migrating off k3s onto two Proxmox VMs. Design:
+All stateful workloads run off k3s on two Proxmox VMs (migration completed 2026-08-06). Design:
 `~/the-algovn/archive/iac/specs/2026-08-04-stateful-services-vm-migration-design.md`
 (archive is local-only, not in git).
 
