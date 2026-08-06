@@ -318,10 +318,13 @@ repoints `pg-rw` to the VM.** Otherwise every service loses its database simulta
 silently, during the phase's most disruptive window. This is a prerequisite, not a
 nice-to-have.
 
-The `ipBlock` rules already exist in `the-button-service`, `the-button-worker` and
-`radio-service` (from the Phase 3 incident fix) and need only the additional port.
-`the-button-migrate` and `the-race-service` currently have no `ipBlock` at all and need
-the full block added.
+A VM `ipBlock` already exists in `the-button-service`, `the-button-worker`,
+`radio-service` and `the-race-service` (from the Phase 3 incident fix) — each needs
+only `{ port: 5432, protocol: TCP }` added to that existing rule, not a new one.
+`the-button-migrate` is the only policy with no VM `ipBlock` at all, so it needs the
+whole block. Check before editing rather than trusting this list:
+
+    grep -n -B2 -A6 'ipBlock: { cidr: 192.168.102.114/32 }' apps/*/networkpolicy.yaml
 
 ### Argo prunes chart-managed PVCs
 
