@@ -5,7 +5,8 @@ metadata:
   namespace: redpanda
   labels: { app: redpanda }   # VMServiceScrape selects Services by THEIR labels
 spec:
-  selector: { app: redpanda }
+  # Selector removed: Redpanda now runs on the data VM, not in-cluster. Traffic
+  # is directed by the companion Endpoints object at 192.168.102.114.
   ports:
     - { port: 9092, targetPort: 9092, name: kafka }
     - { port: 9644, targetPort: 9644, name: admin }

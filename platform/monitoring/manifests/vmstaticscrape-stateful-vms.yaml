@@ -31,6 +31,10 @@ spec:
       path: /minio/v2/metrics/cluster
       scheme: http
     - targets:
+        - 192.168.102.114:9644
+      path: /public_metrics
+      scheme: http
+    - targets:
         - 192.168.102.114:3200   # Tempo
         - 192.168.102.115:8428   # VictoriaMetrics — scrapes itself via vmagent
         - 192.168.102.115:3100   # Loki
