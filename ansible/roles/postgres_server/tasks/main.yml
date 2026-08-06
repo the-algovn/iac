@@ -109,3 +109,47 @@
 
 - name: Flush handlers so the exporter picks up its new config
   ansible.builtin.meta: flush_handlers
+
+- name: Create the pg_dumpall backup directory
+  ansible.builtin.file:
+    path: /var/backups/pg
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0750"
+
+- name: Install pg_dumpall backup script
+  ansible.builtin.template:
+    src: pg-dumpall-backup.sh.j2
+    dest: /usr/local/bin/pg-dumpall-backup
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install pg-dumpall systemd service
+  ansible.builtin.template:
+    src: pg-dumpall.service.j2
+    dest: /etc/systemd/system/pg-dumpall.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: daemon-reload
+
+- name: Install pg-dumpall systemd timer
+  ansible.builtin.template:
+    src: pg-dumpall.timer.j2
+    dest: /etc/systemd/system/pg-dumpall.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: daemon-reload
+
+- name: Flush handlers so systemd sees the new units
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the pg-dumpall timer
+  ansible.builtin.systemd:
+    name: pg-dumpall.timer
+    state: started
+    enabled: true
+    daemon_reload: true

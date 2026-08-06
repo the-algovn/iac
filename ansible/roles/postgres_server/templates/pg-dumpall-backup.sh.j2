@@ -1,0 +1,52 @@
+#!/bin/bash
+# Logical Postgres backup. Runs as `postgres` from pg-dumpall.service, scheduled
+# by pg-dumpall.timer to fire before the 02:17 vzdump so the freshest dump rides
+# inside each night's VM image.
+#
+# Two artefacts on purpose:
+#
+#   pg_dumpall_*.sql.gz   Everything, including the role globals and their SCRAM
+#                         password hashes. This is what you restore from to rebuild
+#                         the whole cluster.
+#
+#   db_<name>_*.sql.gz    One file per application database, from pg_dump.
+#                         pg_dumpall is a single stream in which each database is a
+#                         `\connect` section, and slicing one database back out of it
+#                         is fiddly and easy to get wrong — a rehearsal on 2026-08-06
+#                         overran the section boundary and hit "database zitadel
+#                         already exists". The common restore is "one app corrupted
+#                         its own data", so keep that case a one-liner instead.
+#
+# The whole set is a few MB compressed, so having both costs nothing worth counting.
+set -euo pipefail
+
+BACKUP_DIR="/var/backups/pg"
+KEEP=7
+
+mkdir -p "$BACKUP_DIR"
+# 750, owned by postgres: these files contain every role's password hash.
+chmod 750 "$BACKUP_DIR"
+
+TIMESTAMP="$(date +%Y%m%d_%H%M)"
+
+umask 077
+pg_dumpall | gzip > "$BACKUP_DIR/pg_dumpall_$TIMESTAMP.sql.gz"
+
+# Per-database dumps for granular restore. Skips templates and the default
+# maintenance database, which carry nothing worth restoring.
+psql -tAc "select datname from pg_database where datallowconn and datname not in ('template0','template1','postgres');" \
+  | while read -r db; do
+      [ -n "$db" ] || continue
+      pg_dump "$db" | gzip > "$BACKUP_DIR/db_${db}_$TIMESTAMP.sql.gz"
+    done
+
+# Prune each series independently so one cannot age the other out.
+ls -1t "$BACKUP_DIR"/pg_dumpall_*.sql.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
+
+# Each database gets its own retention window, keyed on the database name so a
+# newly added database does not evict an older one's history.
+psql -tAc "select datname from pg_database where datallowconn and datname not in ('template0','template1','postgres');" \
+  | while read -r db; do
+      [ -n "$db" ] || continue
+      ls -1t "$BACKUP_DIR/db_${db}_"*.sql.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -f
+    done

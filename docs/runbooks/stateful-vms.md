@@ -939,3 +939,87 @@ restoring the tempo chart source in `clusters/algovn/platform/tracing.yaml`.
 Debug: `systemctl status tempo` / `journalctl -u tempo -n 50` on the VM;
 `curl localhost:3200/ready` there; from a k3s node,
 `curl http://192.168.102.114:3200/ready`.
+
+## Backups
+
+Until Phase 3 there were **no backups of any kind**. Making Proxmox-native backups
+possible is the reason the stateful services were moved onto VMs at all, so this
+section is the point of the whole migration, not an appendix.
+
+### What runs, and when
+
+| job | covers | schedule | retention |
+|---|---|---|---|
+| `algovn-data-nightly` | 114 (algovn-data) | daily 02:17 | `keep-daily=7` |
+| the original weekly job | 111, 112, 115, 121, 124 | Sundays 03:00 | `keep-weekly=2` |
+| `pg-dumpall.timer` (on the VM) | all Postgres databases | daily, before 02:17 | 7 of each series |
+
+`algovn-data` is nightly because it holds every database, object and counter in the
+cluster. `algovn-obs` is only weekly — Loki, uptime-kuma and VictoriaMetrics hold
+derived data that regenerates, so a week-old copy is enough.
+
+Archives land in `/srv/backup/dump` on the Proxmox host. **`qemu-guest-agent` is what
+makes a running-VM image safe**: Proxmox asks it to fsfreeze the filesystem, so the
+snapshot is filesystem-consistent and Postgres recovers from WAL on restore exactly as
+it would from a crash. If the agent is dead the backup still runs, and it is a torn
+image — check `qm agent 114 ping` before trusting one.
+
+### The Postgres logical dumps
+
+A whole-VM image cannot restore a single database, so `pg-dumpall.timer` writes to
+`/var/backups/pg` on the VM **before** the vzdump, and the dumps therefore ride inside
+each night's image. Two series, deliberately:
+
+- `pg_dumpall_*.sql.gz` — everything including the role globals and their SCRAM
+  password hashes. Restore from this to rebuild the cluster.
+- `db_<name>_*.sql.gz` — one per application database. Slicing a single database back
+  out of a `pg_dumpall` stream is fiddly and easy to get wrong; a rehearsal overran the
+  `\connect` boundary and failed with "database zitadel already exists". The common
+  case is one app corrupting its own data, so that case is kept a one-liner.
+
+The directory is `drwxr-x--- postgres postgres` and the files are `0600` — they carry
+every role's password hash.
+
+### Restoring
+
+Single database (the usual case), into a scratch database first — never straight over
+a live one:
+
+    ssh data
+    sudo -u postgres psql -c 'CREATE DATABASE restore_test OWNER the_race;'
+    sudo -u postgres sh -c 'zcat /var/backups/pg/db_the_race_<ts>.sql.gz | psql -q -d restore_test -v ON_ERROR_STOP=1'
+    # compare row counts against the live database, then promote or drop
+    sudo -u postgres psql -c 'DROP DATABASE restore_test;'
+
+Whole VM, from the Proxmox host — **restore to a NEW vmid** so the running VM is not
+destroyed while you are still deciding:
+
+    ssh pve
+    ls -t /srv/backup/dump/vzdump-qemu-114-*.vma.zst
+    qmrestore /srv/backup/dump/vzdump-qemu-114-<ts>.vma.zst 199 --storage local-lvm
+
+Verify an archive without restoring it:
+
+    zstd --test /srv/backup/dump/vzdump-qemu-114-<ts>.vma.zst      # stream intact
+    zstd -dc <archive> | vma config -                              # config readable
+
+**A backup that has never been restored is not a backup.** Rehearsed 2026-08-06:
+`db_the_race` restored into a scratch database, all four tables matched the live row
+counts exactly (goose_db_version 3, room 6, race 6, spend_line 6).
+
+### Capacity
+
+`/srv/backup` is 94 G. Steady state projects to roughly 72 G: nightly 114 at ~3.4 G
+compressed × 7, plus a ~24 G weekly set × 2. That is why `keep-weekly` was cut from 4
+to 2 — at 4 the weekly job alone did not fit, and it had been silently over-committed
+since before the migration.
+
+`algovn-w1` (112) is the dominant cost at ~21.7 G per set, and it is now a **stateless
+worker**. It is still backed up only because the pre-migration PVs retained on that node
+are the rollback path. Once those are deleted, dropping 112 from the weekly job frees
+more than everything else here combined.
+
+⚠️ The weekly job silently failed every run for an unknown period because it listed
+VMID 122, which no longer exists — vzdump errors on a missing guest and the job reports
+`job errors` while still backing up everything else. If the job reports errors, check
+that every vmid in `/etc/pve/jobs.cfg` still resolves before looking anywhere else.
