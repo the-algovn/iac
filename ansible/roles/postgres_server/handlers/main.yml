@@ -2,3 +2,8 @@
   ansible.builtin.systemd:
     name: postgresql
     state: restarted
+
+- name: restart postgres exporter
+  ansible.builtin.systemd:
+    name: prometheus-postgres-exporter
+    state: restarted

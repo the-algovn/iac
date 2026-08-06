@@ -79,3 +79,33 @@
     state: present
   become_user: postgres
   loop: "{{ pg_roles }}"
+
+- name: Create the prometheus monitoring role
+  community.postgresql.postgresql_user:
+    name: prometheus
+    role_attr_flags: LOGIN
+    state: present
+  become_user: postgres
+  # no_log not needed — this role has no password; it authenticates via peer.
+
+- name: Grant pg_monitor to prometheus
+  community.postgresql.postgresql_membership:
+    group: pg_monitor
+    target_roles:
+      - prometheus
+    state: present
+  become_user: postgres
+
+- name: Configure the postgres_exporter DATA_SOURCE_NAME
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-postgres-exporter
+    content: |
+      # Unix-socket peer auth — the prometheus OS user maps to the prometheus
+      # SQL role. No password exists to store, rotate, or leak.
+      DATA_SOURCE_NAME="user=prometheus host=/var/run/postgresql dbname=postgres sslmode=disable"
+      ARGS=""
+    mode: "0644"
+  notify: restart postgres exporter
+
+- name: Flush handlers so the exporter picks up its new config
+  ansible.builtin.meta: flush_handlers
