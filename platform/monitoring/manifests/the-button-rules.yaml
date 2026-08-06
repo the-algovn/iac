@@ -111,7 +111,7 @@ spec:
           annotations:
             summary: 'redis target down/absent for 1m — the-button fails closed (rejects batches: PoW difficulty (pow:L), throttle (pow:min_interval), and burn keys all live in Redis; the counter itself is unaffected, Postgres SUM is its only truth)'
             runbook: 'iac/docs/runbooks/the-button.md#alert-service-down'
-        # See platform/redis/manifests/statefulset.yaml: maxmemory 400mb,
+        # See ansible/roles/redis_server/templates/redis.conf.j2: maxmemory 400mb,
         # noeviction. redis_memory_{used,max}_bytes come from redis_exporter
         # (confirmed present in-cluster). Warns with margin before Redis
         # starts rejecting writes with an OOM error at the maxmemory ceiling.
@@ -137,8 +137,8 @@ spec:
         - alert: ButtonPVUsageWarning
           expr: |
             max by (namespace, persistentvolumeclaim) (
-              kubelet_volume_stats_used_bytes{namespace=~"postgres|redis"}
-              / kubelet_volume_stats_capacity_bytes{namespace=~"postgres|redis"}
+              kubelet_volume_stats_used_bytes{namespace="postgres"}
+              / kubelet_volume_stats_capacity_bytes{namespace="postgres"}
             ) > 0.70
           for: 15m
           labels: { severity: warning }
@@ -148,11 +148,42 @@ spec:
         - alert: ButtonPVUsageCritical
           expr: |
             max by (namespace, persistentvolumeclaim) (
-              kubelet_volume_stats_used_bytes{namespace=~"postgres|redis"}
-              / kubelet_volume_stats_capacity_bytes{namespace=~"postgres|redis"}
+              kubelet_volume_stats_used_bytes{namespace="postgres"}
+              / kubelet_volume_stats_capacity_bytes{namespace="postgres"}
             ) > 0.85
           for: 5m
           labels: { severity: critical }
           annotations:
             summary: 'PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} >85% full — local-path cannot expand'
             runbook: 'iac/docs/runbooks/the-button.md#alert-pv-usage'
+    - name: stateful-vm-disk
+      rules:
+        # Redis moved to algovn-data in Phase 3, so kubelet_volume_stats no longer
+        # covers it. These alerts replace that coverage with node_filesystem on the
+        # VMs' root filesystems, scoped to the stateful-vms job (both data and obs
+        # node_exporters). The existing kubelet_volume_stats rules above still cover
+        # the postgres PVC (which has not moved).
+        - alert: StatefulVMDiskWarning
+          expr: |
+            max by (instance) (
+              (node_filesystem_size_bytes{job="stateful-vms",fstype!~"tmpfs|squashfs",mountpoint="/"}
+               - node_filesystem_avail_bytes{job="stateful-vms",fstype!~"tmpfs|squashfs",mountpoint="/"})
+              / node_filesystem_size_bytes{job="stateful-vms",fstype!~"tmpfs|squashfs",mountpoint="/"}
+            ) > 0.70
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: 'VM {{ $labels.instance }} root filesystem >70% full'
+            runbook: 'iac/docs/runbooks/stateful-vms.md'
+        - alert: StatefulVMDiskCritical
+          expr: |
+            max by (instance) (
+              (node_filesystem_size_bytes{job="stateful-vms",fstype!~"tmpfs|squashfs",mountpoint="/"}
+               - node_filesystem_avail_bytes{job="stateful-vms",fstype!~"tmpfs|squashfs",mountpoint="/"})
+              / node_filesystem_size_bytes{job="stateful-vms",fstype!~"tmpfs|squashfs",mountpoint="/"}
+            ) > 0.85
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: 'VM {{ $labels.instance }} root filesystem >85% full'
+            runbook: 'iac/docs/runbooks/stateful-vms.md'
