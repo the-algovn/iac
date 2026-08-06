@@ -1,0 +1,9 @@
+# `bao` is the OpenBao path segment, `name` the SQL role, `db` the database it owns.
+# zitadel needs CREATEDB: its init probes by issuing CREATE DATABASE (42501 without
+# it; 42P04 "already exists" is its success path).
+pg_roles:
+  - { bao: zitadel,   name: zitadel,    db: zitadel,    attrs: "LOGIN,CREATEDB" }
+  - { bao: openfga,   name: openfga,    db: openfga }
+  - { bao: the-button, name: the_button, db: the_button }
+  - { bao: radio-lab, name: radio_lab,  db: radio_lab }
+  - { bao: the-race,  name: the_race,   db: the_race }

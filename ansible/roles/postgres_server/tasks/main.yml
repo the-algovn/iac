@@ -1,0 +1,81 @@
+- name: Install the PGDG signing key
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /etc/apt/keyrings/pgdg.asc
+    mode: "0644"
+
+- name: Add the PGDG apt repo
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    filename: pgdg
+    state: present
+
+- name: Install PostgreSQL 18, its exporter, and the psycopg the modules need
+  ansible.builtin.apt:
+    name:
+      - postgresql-18
+      - prometheus-postgres-exporter
+      # community.postgresql executes through psycopg on the managed node; without
+      # it every postgresql_* task fails with "the python psycopg module is required".
+      - python3-psycopg2
+    state: present
+    update_cache: true
+
+- name: Install postgresql.conf
+  ansible.builtin.template:
+    src: postgresql.conf.j2
+    dest: /etc/postgresql/18/main/conf.d/99-algovn.conf
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  notify: restart postgresql
+
+- name: Install pg_hba.conf
+  ansible.builtin.template:
+    src: pg_hba.conf.j2
+    dest: /etc/postgresql/18/main/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: "0640"
+  notify: restart postgresql
+
+- name: Flush handlers so the roles below connect to the tuned server
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable postgresql and the exporter
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - postgresql
+    - prometheus-postgres-exporter
+
+- name: Read each app's Postgres password from OpenBao
+  ansible.builtin.uri:
+    url: "{{ bao_addr }}/v1/secret/data/algovn/postgres/pg-role-{{ item.bao }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ bao_token }}"
+    status_code: 200
+  register: pg_role_secrets
+  no_log: true
+  loop: "{{ pg_roles }}"
+
+- name: Create the application roles
+  community.postgresql.postgresql_user:
+    name: "{{ item.item.name }}"
+    password: "{{ item.json.data.data.password }}"
+    role_attr_flags: "{{ item.item.attrs | default('LOGIN') }}"
+    state: present
+  become_user: postgres
+  no_log: true
+  loop: "{{ pg_role_secrets.results }}"
+
+- name: Create the application databases
+  community.postgresql.postgresql_db:
+    name: "{{ item.db }}"
+    owner: "{{ item.name }}"
+    state: present
+  become_user: postgres
+  loop: "{{ pg_roles }}"

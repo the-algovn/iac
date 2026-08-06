@@ -64,6 +64,7 @@
     - { role: tempo, tags: [tempo] }
     - { role: redpanda, tags: [redpanda] }
     - { role: redis_server, tags: [redis] }
+    - { role: postgres_server, tags: [postgres] }
 
 - name: Observability services on the obs VM
   hosts: obs
