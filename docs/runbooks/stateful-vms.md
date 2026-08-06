@@ -204,7 +204,7 @@ Nothing that consumed the name has to change: alloy still pushes to
 the same for `redis`, `minio`, `redpanda` and `pg-rw`. (VictoriaMetrics is the exception —
 the chart resolves its own URLs, so it is a values change instead; see its section.)
 
-Three consequences, each of which has already cost time:
+Four consequences, each of which has already cost time:
 
 - **Argo excludes `Endpoints` from sync by default.**
   `platform/argocd/patches/exclusions-cm.yaml` is what re-includes them. Without that
@@ -245,6 +245,83 @@ slice is invisible through the old API:
 
 Expect exactly ONE slice, holding the VM's IP. If traffic, logs or metrics stop while the
 Argo app reads Synced/Healthy, look here first.
+
+- **Every egress NetworkPolicy that uses `namespaceSelector` silently breaks the
+  instant the target service leaves the cluster.** See the dedicated section below — this
+  one hit every Phase 3 consumer at once, with zero logged events.
+
+### NetworkPolicy egress breaks silently when a target namespace disappears
+
+**A `namespaceSelector` can never match an off-cluster IP address.** The moment a
+service's Endpoints move to a VM, every consumer whose egress policy references that
+namespace stops permitting the traffic. The failure is **silent**: no Event, no
+controller log, no `kubectl describe networkpolicy` warning — the policy simply no
+longer selects the port for egress. Packets drop at the pod boundary, and the
+application sees a connection timeout.
+
+This hit every Phase 3 consumer the instant their dependencies moved: the-button-worker
+lost Redis and Redpanda, radio-service lost OTLP trace export, and RedisInsight lost
+its only dependency. All are fixed with additive `ipBlock: 192.168.102.114/32` rules on
+the same ports, keeping the `namespaceSelector` because it still documents intent and
+goes live again if the service returns to the cluster.
+
+**Fix pattern** — add an `ipBlock` for the VM alongside the existing `namespaceSelector`:
+
+```yaml
+egress:
+  - to:
+      - namespaceSelector:
+          matchLabels: { kubernetes.io/metadata.name: redis }
+    ports:
+      - { port: 6379, protocol: TCP }
+  - to:
+      - ipBlock: { cidr: 192.168.102.114/32 }
+    ports:
+      - { port: 6379, protocol: TCP }
+```
+
+**How to check:**
+
+```bash
+# List every egress rule that references a known-offloaded selector:
+kubectl --context algovn-remote get networkpolicy -A -o yaml \
+  | yq '.items[] | select(.spec.egress[].to[].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "redis") | .metadata.namespace + "/" + .metadata.name'
+
+# From a pod, confirm the port is reachable via the ipBlock:
+kubectl --context algovn-remote exec -n <ns> <pod> -- nc -zv -w 2 192.168.102.114 6379
+```
+
+#### Postgres cutover prerequisite — add 5432 ipBlock BEFORE repointing pg-rw
+
+Five NetworkPolicies still carry a `namespaceSelector` for the `postgres` namespace on
+port 5432 and will break the same way the instant `pg-rw` points off-cluster:
+
+| File | Policy |
+|---|---|
+| `apps/the-button/networkpolicy.yaml` | `the-button-service` |
+| `apps/the-button/networkpolicy.yaml` | `the-button-migrate` |
+| `apps/the-button/networkpolicy.yaml` | `the-button-worker` |
+| `apps/radio-service/networkpolicy.yaml` | `radio-service` |
+| `apps/the-race-service/networkpolicy.yaml` | `the-race-service` |
+
+Confirmed with:
+
+```bash
+grep -rn 'matchLabels: { kubernetes.io/metadata.name: postgres }' apps/the-button/networkpolicy.yaml apps/radio-service/networkpolicy.yaml apps/the-race-service/networkpolicy.yaml
+```
+
+**Do NOT add the 5432 `ipBlock` rules now** — Postgres is still in-cluster and opening a
+path to a database that exists on both sides is premature. But **the Postgres cutover
+must add `{ port: 5432, protocol: TCP }` to every existing
+`ipBlock: { cidr: 192.168.102.114/32 }` rule in these files in the same commit that
+repoints `pg-rw` to the VM.** Otherwise every service loses its database simultaneously,
+silently, during the phase's most disruptive window. This is a prerequisite, not a
+nice-to-have.
+
+The `ipBlock` rules already exist in `the-button-service`, `the-button-worker` and
+`radio-service` (from the Phase 3 incident fix) and need only the additional port.
+`the-button-migrate` and `the-race-service` currently have no `ipBlock` at all and need
+the full block added.
 
 ### Argo prunes chart-managed PVCs
 
