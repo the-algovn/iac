@@ -595,17 +595,122 @@ is `false` — nothing can produce until those Jobs have run.
 **No data migration was needed** — `dev-container` mode has relaxed durability, and
 the spec records that a lost Kafka record is safe to drop because Redis is
 authoritative and Postgres snapshots. The six topics were recreated by the
-provisioning Jobs on the new broker.
+provisioning Jobs on the new broker (see below).
 
-**Known: `rpk topic consume` hangs on the VM.** `rpk` resolves the broker's
-advertised listener (`redpanda.redpanda.svc.cluster.local`) which does not resolve on
-the data VM (it is not a k3s node). All produce/consume operations must run from
-within the cluster:
+### Recreating topics after a broker rebuild
+
+A new broker starts with no topics and `auto_create_topics_enabled=false`. Until
+the provisioning Jobs run, producers fail silently — the-button's clicks simply stop
+being recorded with nothing erroring loudly. This applies to every rebuild, whether
+from a lost data directory, an image upgrade that wipes state, or a re-cloned VM.
+
+The two PreSync Jobs (`the-button/the-button-topics` and
+`radio-service/radio-topics`) are idempotent, but **Argo hook Jobs do not re-run on
+an already-synced app.** A `kubectl annotate app ... refresh=hard` will report
+Synced/Healthy without triggering the hooks. The procedure below is the actual
+sequence:
+
+```bash
+# 1. Delete both Jobs so Argo does not fight a replacement.
+kubectl --context algovn-remote -n the-button delete job the-button-topics
+kubectl --context algovn-remote -n radio-service delete job radio-topics
+
+# 2. Create non-hook copies — these run once, immediately, and do not interfere
+#    with the Argo-managed originals.
+kubectl --context algovn-remote create -n the-button -f -o yaml <<'YAML'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: the-button-topics
+  namespace: the-button
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata: { labels: { app: the-button-topics } }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: topics
+          image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              B=redpanda.redpanda.svc.cluster.local:9092
+              until rpk cluster info --brokers $B >/dev/null 2>&1; do
+                echo "waiting for redpanda..."; sleep 5
+              done
+              rpk topic create clicks -p 1 -r 1 -c retention.ms=300000 --brokers $B || true
+              rpk topic create sse.counter sse.leaderboard sse.user -p 1 -r 1 -c retention.ms=60000 --brokers $B || true
+              rpk topic describe clicks sse.counter sse.leaderboard sse.user --brokers $B
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }
+YAML
+
+kubectl --context algovn-remote create -n radio-service -f -o yaml <<'YAML'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: radio-topics
+  namespace: radio-service
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata: { labels: { app: radio-topics } }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: topics
+          image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              B=redpanda.redpanda.svc.cluster.local:9092
+              until rpk cluster info --brokers $B >/dev/null 2>&1; do
+                echo "waiting for redpanda..."; sleep 5
+              done
+              rpk topic create sse.radio.nowplaying sse.radio.queue -p 1 -r 1 -c retention.ms=60000 --brokers $B || true
+              rpk topic describe sse.radio.nowplaying sse.radio.queue --brokers $B
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }
+YAML
+
+# 3. Wait for both to complete, then verify all six topics:
+kubectl --context algovn-remote wait job -n the-button the-button-topics --for=condition=Complete --timeout=120s
+kubectl --context algovn-remote wait job -n radio-service radio-topics --for=condition=Complete --timeout=120s
+kubectl --context algovn-remote -n the-button run verify --rm -i --restart=Never \
+  --image=docker.redpanda.com/redpandadata/redpanda:v24.2.7 --command \
+  -- rpk topic list --brokers redpanda.redpanda.svc:9092
+
+# 4. After verifying, delete the non-hook Jobs and let Argo reconcile the
+#    originals on the next sync:
+kubectl --context algovn-remote -n the-button delete job the-button-topics
+kubectl --context algovn-remote -n radio-service delete job radio-topics
+kubectl --context algovn-remote -n argocd annotate app the-button argocd.argoproj.io/refresh=hard
+kubectl --context algovn-remote -n argocd annotate app radio-service argocd.argoproj.io/refresh=hard
+# Remove annotations after Argo syncs:
+kubectl --context algovn-remote -n argocd annotate app the-button argocd.argoproj.io/refresh-
+kubectl --context algovn-remote -n argocd annotate app radio-service argocd.argoproj.io/refresh-
+```
+
+### All rpk topic commands must run in-cluster, not on the VM
+
+`rpk` follows the broker's advertised listener
+(`redpanda.redpanda.svc.cluster.local`) for every topic subcommand — `list`,
+`describe`, `consume`, `produce`, and `create` alike — and that name does not
+resolve on the data VM (it is not a k3s node). The listener deliberately advertises
+an in-cluster name because Kafka clients bootstrap to the Service, then follow the
+advertised address; pointing it at the VM's IP would break every in-cluster consumer.
+A one-off pod in the cluster is the workaround:
 
     kubectl --context algovn-remote -n the-button run rpk --rm -i --restart=Never \
       --image=docker.redpanda.com/redpandadata/redpanda:v24.2.7 --command \
-      -- rpk topic consume clicks --num 1 --offset 0 -f "%v\n" \
-      --brokers redpanda.redpanda.svc:9092
+      -- rpk topic list --brokers redpanda.redpanda.svc:9092
 
 **Rollback** — app `redpanda`, PV `pvc-bcc4c7cf-dbdf-4eb8-9d0c-3972accc0ee7`, PVC
 `data-redpanda-0` in ns `redpanda`. Follow "Rollback — rebind the surviving `Retain` PV"
