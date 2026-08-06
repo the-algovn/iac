@@ -60,3 +60,4 @@ spec:
       ports:
         - { port: 9000, protocol: TCP }   # minio
         - { port: 4317, protocol: TCP }   # tempo OTLP
+        - { port: 5432, protocol: TCP }   # postgres

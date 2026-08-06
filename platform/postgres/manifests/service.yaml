@@ -1,0 +1,20 @@
+# Selector-less: PostgreSQL 18 runs natively on algovn-data, outside the cluster
+# (ansible role `postgres_server`). The Endpoints object beside this file supplies
+# the address.
+#
+# The NAME must stay `pg-rw`. Every application's OpenBao URI is
+# postgres://<user>:<pw>@pg-rw.postgres.svc:5432/<db> and zitadel's values.yaml sets
+# `Host: pg-rw.postgres.svc` — neither is edited by this migration, which is the whole
+# reason no credential had to be re-issued. The roles on the VM were created by
+# ansible from the same OpenBao entries those URIs carry.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-rw
+  namespace: postgres
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP

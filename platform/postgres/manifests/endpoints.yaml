@@ -1,0 +1,15 @@
+# Requires platform/argocd/patches/exclusions-cm.yaml — Argo excludes Endpoints from
+# sync by default and would silently skip this while reporting the app Synced. A
+# skipped Endpoints here means every application loses its database.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: pg-rw
+  namespace: postgres
+subsets:
+  - addresses:
+      - ip: 192.168.102.114
+    ports:
+      - name: postgres
+        port: 5432
+        protocol: TCP

@@ -68,6 +68,7 @@ spec:
         - { port: 6379, protocol: TCP }   # redis
         - { port: 9092, protocol: TCP }   # redpanda
         - { port: 4317, protocol: TCP }   # tempo OTLP
+        - { port: 5432, protocol: TCP }   # postgres
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -96,6 +97,15 @@ spec:
             matchLabels: { kubernetes.io/metadata.name: postgres }
       ports:
         - { port: 5432, protocol: TCP }
+    # Postgres moved to algovn-data (192.168.102.114) in Phase 3. A namespaceSelector
+    # cannot match an off-cluster address, so the selector rule above stopped
+    # permitting this traffic the moment pg-rw was repointed — silently. This is the
+    # only policy that had no VM ipBlock yet, so it needs the whole rule.
+    - to:
+        - ipBlock: { cidr: 192.168.102.114/32 }
+      ports:
+        - { port: 5432, protocol: TCP }   # postgres
+
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -156,6 +166,7 @@ spec:
         - { port: 6379, protocol: TCP }   # redis
         - { port: 9092, protocol: TCP }   # redpanda
         - { port: 4317, protocol: TCP }   # tempo OTLP
+        - { port: 5432, protocol: TCP }   # postgres
 
 ---
 apiVersion: networking.k8s.io/v1

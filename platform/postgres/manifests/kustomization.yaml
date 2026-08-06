@@ -1,17 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# CNPG is gone as of Phase 3 (2026-08-06): PostgreSQL 18 runs natively on
+# algovn-data. What remains here is the selector-less Service + Endpoints that keep
+# `pg-rw.postgres.svc:5432` resolving, so no app manifest and no OpenBao URI changed.
+#
+# The Cluster CR, the Database CRs and the pg-role-*-external ExternalSecrets were
+# removed with the operator: roles and databases are now declared in
+# ansible/roles/postgres_server/defaults/main.yml and applied with
+# `ansible-playbook site.yml --limit data --tags postgres`.
 resources:
-  - cluster.yaml
-  - podscrape.yaml
-  - db-zitadel.yaml
-  - pg-role-zitadel-external.yaml
-  - db-openfga.yaml
-  - pg-role-openfga-external.yaml
-  - db-the-button.yaml
-  - pg-role-the-button-external.yaml
-  - db-radio-lab.yaml
-  - pg-role-radio-lab-external.yaml
-  - db-the-race.yaml
-  - pg-role-the-race-external.yaml
-  - db-video-claw.yaml
-  - pg-role-video-claw-external.yaml
+  - service.yaml
+  - endpoints.yaml

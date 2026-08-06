@@ -1,9 +1,0 @@
-apiVersion: postgresql.cnpg.io/v1
-kind: Database
-metadata:
-  name: radio-lab
-  namespace: postgres
-spec:
-  name: radio_lab
-  owner: radio_lab
-  cluster: { name: pg }
