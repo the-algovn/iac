@@ -3,8 +3,11 @@
 # the operator to discover — a static target list is the only option. vmagent stays
 # in-cluster and keeps CR-driven discovery, which is why this is a CR in Argo rather
 # than hand-written scrape config on the VM.
-# Phase 3 appends postgres_exporter (9187) here. redis_exporter (9121) and
-# Tempo (3200) are already listed below.
+# Phase 3 appends postgres_exporter (9187) here. Tempo (3200) is already
+# listed below. redis_exporter (9121) and Redpanda admin (9644) are NOT
+# listed — each already has a cluster-side VMServiceScrape that discovers
+# them through its selector-less Service + Endpoints. Adding them here too
+# would duplicate every series under a different job label.
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMStaticScrape
 metadata:
@@ -31,12 +34,7 @@ spec:
       path: /minio/v2/metrics/cluster
       scheme: http
     - targets:
-        - 192.168.102.114:9644
-      path: /public_metrics
-      scheme: http
-    - targets:
         - 192.168.102.114:3200   # Tempo
-        - 192.168.102.114:9121   # redis_exporter
         - 192.168.102.115:8428   # VictoriaMetrics — scrapes itself via vmagent
         - 192.168.102.115:3100   # Loki
       path: /metrics
