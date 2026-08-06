@@ -11,10 +11,15 @@ All stateful workloads are migrating off k3s onto two Proxmox VMs. Design:
 
 ## PV reclaim policy — do not revert
 
-Every `local-path` PV was patched from `Delete` to `Retain` on 2026-08-04. This is
-the ONLY safety net protecting cluster data: there are no backups, and the Phase 3
-Postgres cutover deletes the CNPG `Cluster` CR, which cascades to its PVC. With
-`Delete`, that cascade destroys the database.
+Every `local-path` PV was patched from `Delete` to `Retain` on 2026-08-04. At the time
+this was the ONLY safety net protecting cluster data — there were no backups at all,
+and the Phase 3 Postgres cutover deletes the CNPG `Cluster` CR, which cascades to its
+PVC. With `Delete`, that cascade destroys the database.
+
+Backups now exist (see `## Backups` below), but they cover the **VMs**, not the
+cluster's remaining local-path PVs. Those PVs still hold the pre-migration copies of
+every migrated service and are the rollback path, so `Retain` stays load-bearing until
+they are deliberately deleted.
 
 `local-path` provisions new PVs with `Delete` (it is the StorageClass default and
 is not configurable per-claim), so **any newly created PVC must be patched by
