@@ -575,6 +575,49 @@ Debug: `systemctl status minio` / `journalctl -u minio -n 50` on the VM;
 `curl localhost:9000/minio/health/live` there; from a k3s node,
 `curl http://192.168.102.114:9000/minio/health/live`.
 
+## Redpanda
+
+Runs on algovn-data as a podman quadlet (ansible role `redpanda`, tag `redpanda`), data at
+`/var/lib/redpanda`, listening on **:9092** (Kafka) and **:9644** (admin). `dev-container`
+mode with relaxed durability — same flags the StatefulSet passed. The image's
+`/entrypoint.sh` delegates to `rpk`; the quadlet uses `Exec=redpanda start ...` (no
+`Entrypoint=` — quadlet 4.9 does not support that key).
+
+In-cluster, `redpanda.redpanda.svc:9092` / `:9644` is a **selector-less Service +
+Endpoints** (`platform/redpanda/manifests/`) pointing at `192.168.102.114`. All
+consumers (the-button service and worker, radio-service) reach it unchanged.
+
+Redpanda has no authentication — the node-IPs-only ufw rule is its entire access
+control. Topics are provisioned by two PreSync Jobs (`the-button/the-button-topics`
+and `radio-service/radio-topics`) which are idempotent. `auto_create_topics_enabled`
+is `false` — nothing can produce until those Jobs have run.
+
+**No data migration was needed** — `dev-container` mode has relaxed durability, and
+the spec records that a lost Kafka record is safe to drop because Redis is
+authoritative and Postgres snapshots. The six topics were recreated by the
+provisioning Jobs on the new broker.
+
+**Known: `rpk topic consume` hangs on the VM.** `rpk` resolves the broker's
+advertised listener (`redpanda.redpanda.svc.cluster.local`) which does not resolve on
+the data VM (it is not a k3s node). All produce/consume operations must run from
+within the cluster:
+
+    kubectl --context algovn-remote -n the-button run rpk --rm -i --restart=Never \
+      --image=docker.redpanda.com/redpandadata/redpanda:v24.2.7 --command \
+      -- rpk topic consume clicks --num 1 --offset 0 -f "%v\n" \
+      --brokers redpanda.redpanda.svc:9092
+
+**Rollback** — app `redpanda`, PV `pvc-bcc4c7cf-dbdf-4eb8-9d0c-3972accc0ee7`, PVC
+`data-redpanda-0` in ns `redpanda`. Follow "Rollback — rebind the surviving `Retain` PV"
+under Cutover mechanics. Step 1 is restoring `statefulset.yaml`, reverting the Service
+(put `selector: { app: redpanda }` back) and removing `endpoints.yaml` from
+`kustomization.yaml`. The PV survived the prune (hand-written volumeClaimTemplates
+survive chart-managed pruning).
+
+Debug: `systemctl status redpanda` / `journalctl -u redpanda -n 50` on the VM;
+`curl localhost:9644/v1/status/ready` there; from a k3s node,
+`curl http://192.168.102.114:9644/v1/status/ready`.
+
 ## Tempo
 
 Runs on algovn-data as a podman quadlet (ansible role `tempo`, tag `tempo`), config at
