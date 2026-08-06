@@ -62,6 +62,7 @@
     - { role: bao_secrets, tags: [minio, redpanda, redis, postgres, tempo] }
     - { role: minio, tags: [minio] }
     - { role: tempo, tags: [tempo] }
+    - { role: redpanda, tags: [redpanda] }
 
 - name: Observability services on the obs VM
   hosts: obs

@@ -1,0 +1,26 @@
+[Unit]
+Description=Redpanda event bus
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.redpanda.com/redpandadata/redpanda:v24.2.7
+# Network=host, never PublishPort — see docs/runbooks/stateful-vms.md.
+Network=host
+Volume=/var/lib/redpanda:/var/lib/redpanda/data:Z
+# dev-container mode = low-resource single node with relaxed durability, matching
+# what ran in-cluster. The image's /entrypoint.sh delegates to `rpk`, so
+# `Exec=redpanda start ...` produces `rpk redpanda start ...` — safe because the
+# raw broker binary would reject these flags. Entrypoint= is not supported by
+# podman-quadlet 4.9 and the image already handles it.
+# advertise-kafka-addr deliberately stays the in-cluster Service name: clients
+# bootstrap to the Service and then follow this address, which cluster DNS
+# resolves back here. Pointing it at the VM IP would break them.
+Exec=redpanda start --mode dev-container --smp 1 --memory 1G --reserve-memory 0M --default-log-level=warn --kafka-addr internal://0.0.0.0:9092 --advertise-kafka-addr internal://redpanda.redpanda.svc.cluster.local:9092 --set redpanda.auto_create_topics_enabled=false
+
+[Service]
+Restart=always
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target
