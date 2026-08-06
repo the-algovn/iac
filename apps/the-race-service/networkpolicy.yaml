@@ -49,3 +49,14 @@ spec:
       ports:
         - { port: 443, protocol: TCP }
         - { port: 80, protocol: TCP }
+    # MinIO, Redpanda, Redis and Tempo moved to algovn-data (192.168.102.114) in
+    # Phase 3. A namespaceSelector cannot match an off-cluster address, so every
+    # selector rule above silently stopped permitting this traffic the moment its
+    # service left the cluster — this ipBlock is what actually allows it now. The
+    # selectors are kept deliberately: they still document intent, and they become
+    # live again if a service is ever moved back in-cluster.
+    - to:
+        - ipBlock: { cidr: 192.168.102.114/32 }
+      ports:
+        - { port: 9000, protocol: TCP }   # minio
+        - { port: 4317, protocol: TCP }   # tempo OTLP
