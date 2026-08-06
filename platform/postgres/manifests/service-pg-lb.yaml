@@ -1,0 +1,30 @@
+# `pg-lb` was CNPG's LoadBalancer Service, declared inside cluster.yaml's
+# spec.managed.services.additional — so deleting the Cluster CR deleted it too.
+# the-race-service's OpenBao URI is postgres://…@pg-lb.postgres.svc:5432/the_race,
+# and its migrate Job died with "lookup pg-lb.postgres.svc: no such host" until this
+# existed. Keeping the name alive is cheaper and safer than rewriting a secret every
+# consumer would then need restarting for. Everything else uses pg-rw.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-lb
+  namespace: postgres
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: pg-lb
+  namespace: postgres
+subsets:
+  - addresses:
+      - ip: 192.168.102.114
+    ports:
+      - name: postgres
+        port: 5432
+        protocol: TCP

@@ -11,3 +11,4 @@ kind: Kustomization
 resources:
   - service.yaml
   - endpoints.yaml
+  - service-pg-lb.yaml
