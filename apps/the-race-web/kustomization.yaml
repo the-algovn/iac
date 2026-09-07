@@ -10,4 +10,4 @@ images:
   - name: ghcr.io/the-algovn/web-the-race
     newTag: main
     newName: ghcr.io/the-algovn/web-the-race
-    digest: sha256:d4772cf5cce01f928055e9ae1aa0d1d90b2e21d2058879ba528d6c16f8593ff7
+    digest: sha256:16c394b14aa74f74c74cb251af39ed2fdfa44d43499ec320e95a87e307eea5b2
