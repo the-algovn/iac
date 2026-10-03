@@ -19,6 +19,12 @@ all:
           ansible_host: 192.168.102.112
         algovn-w2:
           ansible_host: 192.168.102.113
+        # Dedicated CPU inference node (VoxCPM2 TTS). Tainted so only pods that
+        # tolerate workload=tts land here; see apps/tts-service/voxcpm-deployment.yaml.
+        algovn-w3:
+          ansible_host: 192.168.102.116
+          k3s_node_labels: ["algovn.com/workload=tts"]
+          k3s_node_taints: ["workload=tts:NoSchedule"]
     # Stateful-service VMs. Deliberately NOT in `agents` — that group is what runs
     # the k3s_agent role, and these must never join the cluster. See
     # docs/runbooks/stateful-vms.md.
@@ -47,3 +53,4 @@ all:
       - 192.168.102.111
       - 192.168.102.112
       - 192.168.102.113
+      - 192.168.102.116
