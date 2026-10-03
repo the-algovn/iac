@@ -36,6 +36,8 @@ alloy:
     limits: { memory: 256Mi }
 controller:
   type: daemonset
+  tolerations:
+    - { key: workload, operator: Equal, value: tts, effect: NoSchedule }
   volumes:
     extra:
       - name: journal

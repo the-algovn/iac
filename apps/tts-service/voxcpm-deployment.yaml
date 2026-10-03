@@ -5,6 +5,8 @@ metadata:
   namespace: tts-service
 spec:
   replicas: 3
+  # A 4th 10-CPU pod cannot fit on w3, so any surge would hang every rollout.
+  strategy: { type: RollingUpdate, rollingUpdate: { maxSurge: 0, maxUnavailable: 1 } }
   selector:
     matchLabels: { app: voxcpm-tts }
   template:
