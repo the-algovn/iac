@@ -6,7 +6,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
-  replicas: 1
+  replicas: 0 # parked until video-claw is revisited; namespace, DB and PVC kept
   selector:
     matchLabels: { app: video-claw }
   template:
