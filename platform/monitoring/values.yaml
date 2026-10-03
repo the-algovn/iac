@@ -110,6 +110,3 @@ defaultRules:
     kubernetes-system-controller-manager: { create: false }
 defaultDashboards:
   enabled: true
-prometheus-node-exporter:
-  tolerations:
-    - { key: workload, operator: Equal, value: tts, effect: NoSchedule }
