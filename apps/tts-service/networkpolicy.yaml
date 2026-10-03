@@ -34,6 +34,11 @@ spec:
       ports:
         - { port: 8080, protocol: TCP }
     - to:
+        - podSelector:
+            matchLabels: { app: voxcpm-tts }
+      ports:
+        - { port: 8080, protocol: TCP }
+    - to:
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: minio }
       ports:
@@ -78,6 +83,31 @@ spec:
   # in this repo (e.g. the-button-migrate/the-button-topics).
   podSelector:
     matchLabels: { app: vieneu-tts }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: tts-service }
+      ports:
+        - { port: 8080, protocol: TCP }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: voxcpm-tts
+  namespace: tts-service
+spec:
+  # Model pod: reachable only from tts-service, DNS egress only (HF_HUB_OFFLINE=1).
+  podSelector:
+    matchLabels: { app: voxcpm-tts }
   policyTypes: [Ingress, Egress]
   ingress:
     - from:

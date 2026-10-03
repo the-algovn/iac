@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voxcpm-tts
+  namespace: tts-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: voxcpm-tts }
+  template:
+    metadata:
+      labels: { app: voxcpm-tts }
+    spec:
+      nodeSelector: { algovn.com/workload: tts }
+      tolerations:
+        - { key: workload, operator: Equal, value: tts, effect: NoSchedule }
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: voxcpm-tts
+          image: ghcr.io/the-algovn/tts-service-voxcpm:main
+          ports:
+            - { containerPort: 8080, name: http }
+          env:
+            # Must equal the CPU limit: one inference per pod, all cores on it.
+            - { name: TORCH_THREADS, value: "10" }
+          # ~6GB image pull plus a float32 model load: give startup 10 minutes
+          # before liveness can restart it.
+          startupProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 15
+            failureThreshold: 6
+          resources:
+            # Memory is an estimate (2B params in float32 ~9-10GB resident);
+            # re-measure RSS on w3 (deploy step D8) before trusting it.
+            requests: { cpu: "10", memory: 12Gi }
+            limits: { cpu: "10", memory: 16Gi }
+      imagePullSecrets:
+        - name: registry-creds

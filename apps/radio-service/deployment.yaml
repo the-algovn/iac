@@ -63,6 +63,8 @@ spec:
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
             - { name: DEPLOY_ENV, value: "prod" }
             - { name: LOG_LEVEL, value: "info" }
+            # Self-hosted VoxCPM2 voices render on CPU; a break needs minutes, not 60s.
+            - { name: DIRECTOR_PREP_DEADLINE, value: "240s" }
           readinessProbe:
             grpc: { port: 9290 }
             initialDelaySeconds: 5
