@@ -1,6 +1,6 @@
 # the-algovn/iac
 
-IaC + GitOps source of truth for the `algovn` k3s cluster - three Ubuntu 24.04 VMs (x86_64, amd64 images only) on a single Proxmox VE host (192.168.102.100, 200+ CPU cores; spare capacity for new worker VMs): `algovn` (control plane, .111, 4 vCPU / 8 GB), `algovn-w1` (worker, .112, 8 vCPU / 16 GB) and `algovn-w2` (worker, .113). Stateful services run on two more Proxmox VMs outside the cluster: `algovn-data` (.114, 16 vCPU / 32 GB) and `algovn-obs` (.115, 4 vCPU / 8 GB). No HA: one physical box.
+IaC + GitOps source of truth for the `algovn` k3s cluster - three Ubuntu 24.04 VMs (x86_64, amd64 images only) on a single Proxmox VE host (192.168.102.100, 2x AMD EPYC 7642, 96 cores / 192 threads, AVX2; spare capacity for new worker VMs): `algovn` (control plane, .111, 4 vCPU / 8 GB), `algovn-w1` (worker, .112, 8 vCPU / 16 GB) and `algovn-w2` (worker, .113). Stateful services run on two more Proxmox VMs outside the cluster: `algovn-data` (.114, 16 vCPU / 32 GB) and `algovn-obs` (.115, 4 vCPU / 8 GB). No HA: one physical box.
 
 - **Architecture**: the-algovn/specs `ARCHITECTURE.md`
 - **Layers**: `ansible/` (node) → `bootstrap/` (one-time Argo CD) → `clusters/` + `platform/` + `apps/` (GitOps, Argo-managed)
