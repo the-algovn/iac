@@ -28,8 +28,8 @@ spec:
           env:
             # Must equal the CPU limit: one inference per pod, all cores on it.
             - { name: TORCH_THREADS, value: "10" }
-          # ~6GB image pull plus a float32 model load: give startup 10 minutes
-          # before liveness can restart it.
+          # Probes start after the image pull, so this budget covers only the
+          # float32 model load: 10 minutes before liveness can restart it.
           startupProbe:
             httpGet: { path: /healthz, port: 8080 }
             periodSeconds: 10
@@ -37,9 +37,11 @@ spec:
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
             periodSeconds: 5
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
             periodSeconds: 15
+            timeoutSeconds: 5
             failureThreshold: 6
           resources:
             # Memory is an estimate (2B params in float32 ~9-10GB resident);
