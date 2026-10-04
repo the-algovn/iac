@@ -26,6 +26,10 @@ spec:
             - { name: MINIO_USE_SSL, value: "false" }
             - { name: MINIO_BUCKET, value: "tts-cache" }
             - { name: VIENEU_URL, value: "http://vieneu-tts.tts-service.svc:8080" }
+            - { name: VOXCPM_URL, value: "http://voxcpm-tts.tts-service.svc:8080" }
+            - { name: VOXCPM_PARALLEL, value: "3" }
+            - { name: VOXCPM_CHUNK_TIMEOUT, value: "180s" }
+            - { name: VOICES_BUCKET, value: "tts-voices" }
             - name: GOOGLE_TTS_API_KEY
               valueFrom: { secretKeyRef: { name: tts-keys, key: google-tts } }
             - name: MINIO_ACCESS_KEY

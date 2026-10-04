@@ -3,6 +3,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+echo "==> unresolved deploy placeholders"
+if grep -rn "REPLACE_AT_DEPLOY" apps/; then
+  echo "FAIL: placeholder above must be replaced with a real value before merging"
+  exit 1
+fi
+
 echo "==> kustomize build (all kustomizations)"
 while IFS= read -r f; do
   d=$(dirname "$f")

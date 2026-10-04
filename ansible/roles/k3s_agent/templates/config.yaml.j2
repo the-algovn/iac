@@ -1,3 +1,15 @@
 node-name: {{ inventory_hostname }}
 server: https://{{ hostvars[groups['server'][0]].ansible_host }}:6443
 token: "{{ k3s_node_token }}"
+{% if k3s_node_labels is defined %}
+node-label:
+{% for l in k3s_node_labels %}
+  - "{{ l }}"
+{% endfor %}
+{% endif %}
+{% if k3s_node_taints is defined %}
+node-taint:
+{% for t in k3s_node_taints %}
+  - "{{ t }}"
+{% endfor %}
+{% endif %}

@@ -12,6 +12,36 @@
       - linux-image-generic
     state: present
 
+- name: Check the running kernel can load zram
+  ansible.builtin.command: modprobe -n zram
+  register: zram_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Check whether this host is already a k3s node
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Decide whether this host may be rebooted unattended
+  ansible.builtin.set_fact:
+    zram_fresh_node: "{{ inventory_hostname in groups['server'] | union(groups['agents']) and not k3s_binary.stat.exists }}"
+
+# A fresh clone of template 9000 boots a kernel with no modules-extra; the package
+# above only covers the newer kernel it pulls in, so zram needs a reboot onto it.
+# Rebooting is automatic only for a cluster node k3s is not installed on yet: an
+# unattended reboot of a live node, or of the data/obs VMs, would take down what
+# runs there.
+- name: Reboot a fresh node onto the kernel that ships zram
+  ansible.builtin.reboot:
+  when: zram_probe.rc != 0 and zram_fresh_node
+
+- name: Refuse to reboot a live host for zram
+  ansible.builtin.fail:
+    msg: "Running kernel cannot load zram ({{ zram_probe.stderr }}); reboot {{ inventory_hostname }} by hand, then rerun."
+  when: zram_probe.rc != 0 and not zram_fresh_node
+
 - name: Configure zram0
   ansible.builtin.copy:
     src: zram-generator.conf
