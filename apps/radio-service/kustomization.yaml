@@ -16,4 +16,4 @@ images:
   - name: ghcr.io/the-algovn/radio-service
     newName: ghcr.io/the-algovn/radio-service
     newTag: main
-    digest: sha256:b63a825a2c6215b54a7063da960889d6cfd4e123b2fb4a1059a994421fab19b0
+    digest: sha256:a35c5c5a7972f43a74a7538b1a7d0497711971e7fbfcbcd3e63eecaaaaa7bfb7
