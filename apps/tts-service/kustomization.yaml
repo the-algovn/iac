@@ -17,4 +17,4 @@ images:
   - name: ghcr.io/the-algovn/tts-service-voxcpm
     newName: ghcr.io/the-algovn/tts-service-voxcpm
     newTag: main
-    digest: sha256:7871e0f6c35990a292380ffc7725b7ea0c7cad72fd54af350d9c8f9723a9886b
+    digest: sha256:f7b7b6231616817b0f3a2a18a808f218d3c929f3a7488c1eac7987776bf940e1
