@@ -23,8 +23,10 @@ spec:
       restartPolicy: Never
       containers:
         - name: mc
-          image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-          command: ["/bin/sh", "-c"]
+          # The official mc images are no longer published; the -dev variant
+          # of chainguard's carries the shell these scripts need.
+          image: cgr.dev/chainguard/minio-client:latest-dev@sha256:b056b795d31828015aea061e3168267b0ba80590ba2d8f869e72ff77153a68e8
+          command: ["/usr/bin/sh", "-c"]
           args:
             - |
               set -e
@@ -65,6 +67,7 @@ spec:
                 *) echo "FATAL: policy not attached: $info" >&2; exit 1 ;;
               esac
           env:
+            - { name: HOME, value: /tmp }
             - name: U
               valueFrom: { secretKeyRef: { name: minio-root, key: username } }
             - name: P
