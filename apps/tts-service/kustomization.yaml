@@ -24,4 +24,4 @@ images:
   - name: ghcr.io/the-algovn/tts-service-voxcpm
     newName: ghcr.io/the-algovn/tts-service-voxcpm
     newTag: main
-    digest: sha256:REPLACE_AT_DEPLOY_D4
+    digest: sha256:7871e0f6c35990a292380ffc7725b7ea0c7cad72fd54af350d9c8f9723a9886b
