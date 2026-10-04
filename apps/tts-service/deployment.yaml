@@ -25,13 +25,13 @@ spec:
             - { name: MINIO_ENDPOINT, value: "minio.minio.svc:9000" }
             - { name: MINIO_USE_SSL, value: "false" }
             - { name: MINIO_BUCKET, value: "tts-cache" }
-            - { name: VIENEU_URL, value: "http://vieneu-tts.tts-service.svc:8080" }
             - { name: VOXCPM_URL, value: "http://voxcpm-tts.tts-service.svc:8080" }
             - { name: VOXCPM_PARALLEL, value: "3" }
-            - { name: VOXCPM_CHUNK_TIMEOUT, value: "180s" }
+            # A chunk may render for 60s + 2s per character: measured worst case on
+            # algovn-w3 is ~1.9s per character with all three replicas busy.
+            - { name: VOXCPM_CHUNK_TIMEOUT, value: "60s" }
+            - { name: VOXCPM_CHAR_TIMEOUT, value: "2s" }
             - { name: VOICES_BUCKET, value: "tts-voices" }
-            - name: GOOGLE_TTS_API_KEY
-              valueFrom: { secretKeyRef: { name: tts-keys, key: google-tts } }
             - name: MINIO_ACCESS_KEY
               valueFrom: { secretKeyRef: { name: minio-creds, key: access } }
             - name: MINIO_SECRET_KEY

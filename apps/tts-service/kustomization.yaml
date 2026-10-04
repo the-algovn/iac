@@ -4,11 +4,8 @@ resources:
   - namespace.yaml
   - registry-creds-external.yaml
   - minio-creds-external.yaml
-  - externalsecret.yaml
   - deployment.yaml
   - service.yaml
-  - vieneu-deployment.yaml
-  - vieneu-service.yaml
   - voxcpm-deployment.yaml
   - voxcpm-service.yaml
   - networkpolicy.yaml
@@ -17,10 +14,6 @@ images:
     newName: ghcr.io/the-algovn/tts-service
     newTag: main
     digest: sha256:85afe81049ecd14105a3349696e863ff4fee0ff8582c17de2bc277c101a549e0
-  - name: ghcr.io/the-algovn/tts-service-vieneu
-    newName: ghcr.io/the-algovn/tts-service-vieneu
-    newTag: main
-    digest: sha256:922278ca911281365968f843b6104ae6d4391237d837df28ae1a61edf8d95d6f
   - name: ghcr.io/the-algovn/tts-service-voxcpm
     newName: ghcr.io/the-algovn/tts-service-voxcpm
     newTag: main

@@ -51,8 +51,6 @@ spec:
               valueFrom: { secretKeyRef: { name: llm-keys, key: gemini, optional: true } }
             - name: ANTHROPIC_API_KEY
               valueFrom: { secretKeyRef: { name: llm-keys, key: anthropic, optional: true } }
-            - name: GOOGLE_TTS_API_KEY
-              valueFrom: { secretKeyRef: { name: llm-keys, key: google-tts, optional: true } }
             # Talk breaks (radio v2): Tiểu Dương Dương speaks at track seams.
             - { name: RADIO_DJ_ENABLED, value: "true" }
             # The DJ writes prose; the programmer makes structured choices. The
@@ -63,8 +61,9 @@ spec:
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
             - { name: DEPLOY_ENV, value: "prod" }
             - { name: LOG_LEVEL, value: "info" }
-            # Self-hosted VoxCPM2 voices render on CPU; a break needs minutes, not 60s.
-            - { name: DIRECTOR_PREP_DEADLINE, value: "240s" }
+            # Self-hosted VoxCPM2 voices render on CPU at ~1.6 characters per second
+            # across all replicas, so a break needs minutes and must fit in one track.
+            - { name: DIRECTOR_PREP_DEADLINE, value: "300s" }
           readinessProbe:
             grpc: { port: 9290 }
             initialDelaySeconds: 5

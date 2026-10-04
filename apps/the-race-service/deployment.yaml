@@ -26,7 +26,8 @@ spec:
             - { name: MINIO_PUBLIC_USE_SSL, value: "true" }
             - { name: MINIO_BUCKET, value: "the-race" }
             - { name: TTS_ADDR, value: "tts-service.tts-service.svc:9490" }
-            - { name: RACE_VOICE_ID, value: "vieneu:Trúc Ly" }
+            # No RACE_VOICE_ID: the CPU voice cannot voice a race inside its 2-minute
+            # prepare window, so commentary stays text-only until a GPU node exists.
             - { name: RACE_DAILY_BUDGET_USD, value: "1.0" }
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "tempo.tracing.svc.cluster.local:4317" }
             - { name: DEPLOY_ENV, value: "prod" }

@@ -15,14 +15,14 @@ spec:
           manifestTargets:
             kustomize:
               name: ghcr.io/the-algovn/tts-service
-        - alias: tts-service-vieneu
-          imageName: ghcr.io/the-algovn/tts-service-vieneu:main
+        - alias: tts-service-voxcpm
+          imageName: ghcr.io/the-algovn/tts-service-voxcpm:main
           commonUpdateSettings:
             updateStrategy: digest
             pullSecret: pullsecret:argocd/ghcr-creds
           manifestTargets:
             kustomize:
-              name: ghcr.io/the-algovn/tts-service-vieneu
+              name: ghcr.io/the-algovn/tts-service-voxcpm
       writeBackConfig:
         method: git:secret:argocd/git-creds
         gitConfig:

@@ -20,7 +20,3 @@ spec:
       remoteRef:
         key: algovn/radio-lab/anthropic
         property: ANTHROPIC_API_KEY
-    - secretKey: google-tts
-      remoteRef:
-        key: algovn/radio-lab/google-tts
-        property: GOOGLE_TTS_API_KEY
